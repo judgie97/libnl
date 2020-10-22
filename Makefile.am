@@ -96,6 +96,7 @@ libnlinclude_netlink_netfilter_HEADERS = \
 	include/netlink/netfilter/netfilter.h \
 	include/netlink/netfilter/nfnl.h \
 	include/netlink/netfilter/queue.h \
+	include/netlink/netfilter/table.h \
 	include/netlink/netfilter/queue_msg.h \
 	$(NULL)
 libnlinclude_netlink_routedir = $(libnlincludedir)/netlink/route
@@ -511,6 +512,7 @@ lib_libnl_nf_3_la_SOURCES = \
 	lib/netfilter/netfilter.c \
 	lib/netfilter/nfnl.c \
 	lib/netfilter/queue.c \
+	lib/netfilter/table.c \
 	lib/netfilter/queue_msg.c \
 	lib/netfilter/queue_msg_obj.c \
 	lib/netfilter/queue_obj.c \

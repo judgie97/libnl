@@ -298,6 +298,21 @@ struct rtnl_addr
 	struct rtnl_link *a_link;
 };
 
+#define NFTTABNAMSIZ 32
+
+struct nftnl_table
+{
+	NLHDR_COMMON
+
+	uint8_t		a_family;
+	uint32_t	a_flags;
+	uint32_t	a_use;
+	uint64_t	a_handle;
+	char a_label[NFTTABNAMSIZ];
+
+	uint32_t a_flag_mask;
+};
+
 struct rtnl_nh_encap
 {
 	struct nh_encap_ops *ops;

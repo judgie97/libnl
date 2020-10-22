@@ -311,6 +311,22 @@ global:
 	nfnlmsg_res_id;
 	nfnlmsg_subsys;
 	nfnlmsg_subtype;
+	nftnl_table_alloc;
+	nftnl_table_put;
+	nftnl_table_alloc_cache;
+	nftnl_table_get;
+	nftnl_table_build_add_request;
+	nftnl_table_add;
+	nftnl_table_build_delete_request;
+	nftnl_table_delete;
+	nftnl_table_flags2str;
+	nftnl_table_str2flags;
+	nftnl_table_get_name;
+	nftnl_table_set_name;
+	nftnl_table_get_handle;
+	nftnl_table_set_handle;
+	nftnl_table_get_family;
+	nftnl_table_set_family;
 local:
 	*;
 };
