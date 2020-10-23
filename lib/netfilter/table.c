@@ -110,196 +110,201 @@
 
 
 /** @cond SKIP */
-#define NFTTAB_ATTR_NAME	0x0001
-#define NFTTAB_ATTR_HANDLE	0x0002
+#define NFTTAB_ATTR_NAME  0x0001
+#define NFTTAB_ATTR_HANDLE  0x0002
 #define NFTTAB_ATTR_FLAGS   0x0004
-#define NFTTAB_ATTR_USE		0x0008
-#define NFTTAB_ATTR_FAMILY	0x0010
+#define NFTTAB_ATTR_USE    0x0008
+#define NFTTAB_ATTR_FAMILY  0x0010
 
 static struct nl_cache_ops nftnl_table_ops;
 static struct nl_object_ops table_obj_ops;
+
 /** @endcond */
 
-static void table_constructor(struct nl_object *obj)
+static void table_constructor(struct nl_object* obj)
 {
-	struct nftnl_table *table = nl_object_priv(obj);
+  struct nftnl_table* table = nl_object_priv(obj);
 
-	table->a_label[0] = 0;
-    table->a_flags = 0;
-    table->a_family = AF_UNSPEC;
+  table->a_label[0] = 0;
+  table->a_flags = 0;
+  table->a_family = AF_UNSPEC;
 }
 
-static void table_free_data(struct nl_object *obj)
+static void table_free_data(struct nl_object* obj)
 {
-	struct nftnl_table *table = nl_object_priv(obj);
+  struct nftnl_table* table = nl_object_priv(obj);
 
-	if (!table)
-		return;
+  if(!table)
+    return;
 
-    //if other objects get stored in tables they need to be put back into their caches so they can be deleted later
+  //if other objects get stored in tables they need to be put back into their caches so they can be deleted later
 }
 
-static int table_clone(struct nl_object *_dst, struct nl_object *_src)
+static int table_clone(struct nl_object* _dst, struct nl_object* _src)
 {
-	struct nftnl_table *dst = nl_object_priv(_dst);
-	struct nftnl_table *src = nl_object_priv(_src);
+  struct nftnl_table* dst = nl_object_priv(_dst);
+  struct nftnl_table* src = nl_object_priv(_src);
 
-	dst->a_family = src->a_family;
-	dst->a_flags = src->a_flags;
-	dst->a_use = src->a_use;
-	dst->a_handle = src->a_handle;
-    strncpy(dst->a_label, src->a_label, NFTTABNAMSIZ);
+  dst->a_family = src->a_family;
+  dst->a_flags = src->a_flags;
+  dst->a_use = src->a_use;
+  dst->a_handle = src->a_handle;
+  strncpy(dst->a_label, src->a_label, NFTTABNAMSIZ);
 
-	return 0;
+  return 0;
 }
 
-static struct nla_policy table_policy[IFA_MAX+1] = {
-	[NFTA_TABLE_NAME]	= { .type = NLA_STRING, .maxlen = NFTTABNAMSIZ },
-	[NFTA_TABLE_FLAGS]	= { .type = NLA_U32},
-	[NFTA_TABLE_USE]	= { .type = NLA_U32},
-	[NFTA_TABLE_HANDLE]	= { .type = NLA_S64},
-	[NFTA_TABLE_PAD]	= { .type = NLA_U32},
+static struct nla_policy table_policy[IFA_MAX + 1] = {
+  [NFTA_TABLE_NAME]  = {.type = NLA_STRING, .maxlen = NFTTABNAMSIZ},
+  [NFTA_TABLE_FLAGS]  = {.type = NLA_U32},
+  [NFTA_TABLE_USE]  = {.type = NLA_U32},
+  [NFTA_TABLE_HANDLE]  = {.type = NLA_S64},
+  [NFTA_TABLE_PAD]  = {.type = NLA_U32},
 };
 
 uint64_t swap_order(uint64_t original)
 {
-	uint8_t* bytes = (uint8_t*)&original;
-	uint64_t output = 0;
+  uint8_t* bytes = (uint8_t * ) & original;
+  uint64_t output = 0;
 
-	uint8_t* newBytes = (uint8_t*)&output;
-	for(int i = 0; i < 8; i++)
-		newBytes[i] = bytes[7-i];
-	return output;
+  uint8_t* newBytes = (uint8_t * ) & output;
+  for(int i = 0; i < 8; i++)
+    newBytes[i] = bytes[7 - i];
+  return output;
 }
 
-static int table_msg_parser(struct nl_cache_ops *ops, struct sockaddr_nl *who,
-			   struct nlmsghdr *nlh, struct nl_parser_param *pp)
+static int table_msg_parser(struct nl_cache_ops* ops, struct sockaddr_nl* who,
+                            struct nlmsghdr* nlh, struct nl_parser_param* pp)
 {
-	struct nftnl_table *table;
-	struct nfgenmsg *hdr;
-	struct nlattr *tb[__NFTA_TABLE_MAX+1];
-	int err;
+  struct nftnl_table* table;
+  struct nfgenmsg* hdr;
+  struct nlattr* tb[__NFTA_TABLE_MAX + 1];
+  int err;
 
-	table = nftnl_table_alloc();
-	if (!table)
-		return -NLE_NOMEM;
+  table = nftnl_table_alloc();
+  if(!table)
+    return -NLE_NOMEM;
 
-	table->ce_msgtype = nlh->nlmsg_type;
+  table->ce_msgtype = nlh->nlmsg_type;
 
-	err = nlmsg_parse(nlh, sizeof(*hdr), tb, __NFTA_TABLE_MAX, table_policy);
-	if (err < 0)
-		goto errout;
+  err = nlmsg_parse(nlh, sizeof(*hdr), tb, __NFTA_TABLE_MAX, table_policy);
+  if(err < 0)
+    goto errout;
 
-	hdr = nlmsg_data(nlh);
-	table->a_family = hdr->nfgen_family;
-	table->ce_mask = NFTTAB_ATTR_FAMILY;
+  hdr = nlmsg_data(nlh);
+  table->a_family = hdr->nfgen_family;
+  table->ce_mask = NFTTAB_ATTR_FAMILY;
 
-	if (tb[NFTA_TABLE_NAME]) {
-		nla_strlcpy(table->a_label, tb[NFTA_TABLE_NAME], NFTTABNAMSIZ);
-		table->ce_mask |= NFTTAB_ATTR_NAME;
-	}
+  if(tb[NFTA_TABLE_NAME])
+  {
+    nla_strlcpy(table->a_label, tb[NFTA_TABLE_NAME], NFTTABNAMSIZ);
+    table->ce_mask |= NFTTAB_ATTR_NAME;
+  }
 
-	if (tb[NFTA_TABLE_FLAGS]) {
-		table->a_flags = *(uint32_t*)nla_data(tb[NFTA_TABLE_FLAGS]);
-		table->ce_mask |= NFTTAB_ATTR_FLAGS;
-	}
+  if(tb[NFTA_TABLE_FLAGS])
+  {
+    table->a_flags = *(uint32_t*) nla_data(tb[NFTA_TABLE_FLAGS]);
+    table->ce_mask |= NFTTAB_ATTR_FLAGS;
+  }
 
-	if (tb[NFTA_TABLE_USE]) {
-		table->a_use = *(uint32_t*)nla_data(tb[NFTA_TABLE_USE]);
-		table->ce_mask |= NFTTAB_ATTR_USE;
-	}
+  if(tb[NFTA_TABLE_USE])
+  {
+    table->a_use = *(uint32_t*) nla_data(tb[NFTA_TABLE_USE]);
+    table->ce_mask |= NFTTAB_ATTR_USE;
+  }
 
-	if (tb[NFTA_TABLE_HANDLE]) {
-		table->a_handle = swap_order(*(uint64_t*)nla_data(tb[NFTA_TABLE_HANDLE]));
-		table->ce_mask |= NFTTAB_ATTR_HANDLE;
-	}
+  if(tb[NFTA_TABLE_HANDLE])
+  {
+    table->a_handle = swap_order(*(uint64_t*) nla_data(tb[NFTA_TABLE_HANDLE]));
+    table->ce_mask |= NFTTAB_ATTR_HANDLE;
+  }
 
-	err = pp->pp_cb((struct nl_object *) table, pp);
+  err = pp->pp_cb((struct nl_object*) table, pp);
 errout:
-	nftnl_table_put(table);
+  nftnl_table_put(table);
 
-	return err;
+  return err;
 
 errout_nomem:
-	err = -NLE_NOMEM;
-	goto errout;
+  err = -NLE_NOMEM;
+  goto errout;
 }
 
-static int table_request_update(struct nl_cache *cache, struct nl_sock *sk)
+static int table_request_update(struct nl_cache* cache, struct nl_sock* sk)
 {
-	return nl_rtgen_request(sk, NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_GETTABLE, AF_UNSPEC, NLM_F_DUMP);
+  return nl_rtgen_request(sk, NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_GETTABLE, AF_UNSPEC, NLM_F_DUMP);
 }
 
-static void table_dump_line(struct nl_object *obj, struct nl_dump_params *p)
+static void table_dump_line(struct nl_object* obj, struct nl_dump_params* p)
 {
-	struct nftnl_table *table = (struct nftnl_table *) obj;
-	char buf[128];
+  struct nftnl_table* table = (struct nftnl_table*) obj;
+  char buf[128];
 
-	if (table->ce_mask & NFTTAB_ATTR_NAME)
-		nl_dump_line(p, "%s", table->a_label);
-	else
-		nl_dump_line(p, "none");
+  if(table->ce_mask & NFTTAB_ATTR_NAME)
+    nl_dump_line(p, "%s", table->a_label);
+  else
+    nl_dump_line(p, "none");
 
-	if (table->ce_mask & NFTTAB_ATTR_FAMILY)
-		nl_dump(p, " family %s", nl_af2str(table->a_family, buf, sizeof(buf)));
+  if(table->ce_mask & NFTTAB_ATTR_FAMILY)
+    nl_dump(p, " family %s", nl_af2str(table->a_family, buf, sizeof(buf)));
 
-	nl_dump(p, "handle %d", table->a_handle);
+  nl_dump(p, "handle %d", table->a_handle);
 
-	nftnl_table_flags2str(table->a_flags, buf, sizeof(buf));
-	if (buf[0])
-		nl_dump(p, " <%s>", buf);
+  nftnl_table_flags2str(table->a_flags, buf, sizeof(buf));
+  if(buf[0])
+    nl_dump(p, " <%s>", buf);
 
-	nl_dump(p, "\n");
+  nl_dump(p, "\n");
 }
 
-static void table_dump_details(struct nl_object *obj, struct nl_dump_params *p)
+static void table_dump_details(struct nl_object* obj, struct nl_dump_params* p)
 {
-	table_dump_line(obj, p);
+  table_dump_line(obj, p);
 }
 
-static void table_dump_stats(struct nl_object *obj, struct nl_dump_params *p)
+static void table_dump_stats(struct nl_object* obj, struct nl_dump_params* p)
 {
-	table_dump_details(obj, p);
+  table_dump_details(obj, p);
 }
 
-static uint32_t table_id_attrs_get(struct nl_object *obj)
+static uint32_t table_id_attrs_get(struct nl_object* obj)
 {
-	return NFTTAB_ATTR_HANDLE | NFTTAB_ATTR_FAMILY | NFTTAB_ATTR_NAME;
-	
+  return NFTTAB_ATTR_HANDLE | NFTTAB_ATTR_FAMILY | NFTTAB_ATTR_NAME;
+
 }
 
-static uint64_t table_compare(struct nl_object *_a, struct nl_object *_b,
-			     uint64_t attrs, int flags)
+static uint64_t table_compare(struct nl_object* _a, struct nl_object* _b,
+                              uint64_t attrs, int flags)
 {
-	struct nftnl_table *a = (struct nftnl_table *) _a;
-	struct nftnl_table *b = (struct nftnl_table *) _b;
-	uint64_t diff = 0;
+  struct nftnl_table* a = (struct nftnl_table*) _a;
+  struct nftnl_table* b = (struct nftnl_table*) _b;
+  uint64_t diff = 0;
 
 #define NFTTAB_DIFF(ATTR, EXPR) ATTR_DIFF(attrs, NFTTAB_ATTR_##ATTR, a, b, EXPR)
 
-	diff |= NFTTAB_DIFF(NAME,	strncmp(a->a_label, b->a_label, NFTTABNAMSIZ) != 0);
-	diff |= NFTTAB_DIFF(FAMILY,	a->a_family != b->a_family);
-	diff |= NFTTAB_DIFF(USE,	a->a_use != b->a_use);
-	diff |= NFTTAB_DIFF(HANDLE,	a->a_handle != b->a_handle);
-	diff |= NFTTAB_DIFF(FLAGS,	a->a_flags != b->a_flags);
+  diff |= NFTTAB_DIFF(NAME, strncmp(a->a_label, b->a_label, NFTTABNAMSIZ) != 0);
+  diff |= NFTTAB_DIFF(FAMILY, a->a_family != b->a_family);
+  diff |= NFTTAB_DIFF(USE, a->a_use != b->a_use);
+  diff |= NFTTAB_DIFF(HANDLE, a->a_handle != b->a_handle);
+  diff |= NFTTAB_DIFF(FLAGS, a->a_flags != b->a_flags);
 
 #undef NFTTAB_DIFF
 
-	return diff;
+  return diff;
 }
 
 static const struct trans_tbl table_attrs[] = {
-	__ADD(NFTTAB_ATTR_FAMILY, family),
-	__ADD(NFTTAB_ATTR_FLAGS, flags),
-	__ADD(NFTTAB_ATTR_NAME, name),
-	__ADD(NFTTAB_ATTR_USE, use),
-	__ADD(NFTTAB_ATTR_HANDLE, handle)
+  __ADD(NFTTAB_ATTR_FAMILY, family),
+  __ADD(NFTTAB_ATTR_FLAGS, flags),
+  __ADD(NFTTAB_ATTR_NAME, name),
+  __ADD(NFTTAB_ATTR_USE, use),
+  __ADD(NFTTAB_ATTR_HANDLE, handle)
 };
 
-static char *table_attrs2str(int attrs, char *buf, size_t len)
+static char* table_attrs2str(int attrs, char* buf, size_t len)
 {
-	return __flags2str(attrs, buf, len, table_attrs,
-			   ARRAY_SIZE(table_attrs));
+  return __flags2str(attrs, buf, len, table_attrs,
+                     ARRAY_SIZE(table_attrs));
 }
 
 /**
@@ -307,14 +312,14 @@ static char *table_attrs2str(int attrs, char *buf, size_t len)
  * @{
  */
 
-struct nftnl_table *nftnl_table_alloc(void)
+struct nftnl_table* nftnl_table_alloc(void)
 {
-	return (struct nftnl_table *) nl_object_alloc(&table_obj_ops);
+  return (struct nftnl_table*) nl_object_alloc(&table_obj_ops);
 }
 
-void nftnl_table_put(struct nftnl_table *table)
+void nftnl_table_put(struct nftnl_table* table)
 {
-	nl_object_put((struct nl_object *) table);
+  nl_object_put((struct nl_object*) table);
 }
 
 /** @} */
@@ -324,9 +329,9 @@ void nftnl_table_put(struct nftnl_table *table)
  * @{
  */
 
-int nftnl_table_alloc_cache(struct nl_sock *sk, struct nl_cache **result)
+int nftnl_table_alloc_cache(struct nl_sock* sk, struct nl_cache** result)
 {
-	return nl_cache_alloc_and_fill(&nftnl_table_ops, sk, result);
+  return nl_cache_alloc_and_fill(&nftnl_table_ops, sk, result);
 }
 
 /**
@@ -343,59 +348,60 @@ int nftnl_table_alloc_cache(struct nl_sock *sk, struct nl_cache **result)
  *
  * @return Address object or NULL if no match was found.
  */
-struct nftnl_table *nftnl_table_get(struct nl_cache *cache, char* name)
+struct nftnl_table* nftnl_table_get(struct nl_cache* cache, char* name)
 {
-	struct nftnl_table *a;
+  struct nftnl_table* a;
 
-	if (cache->c_ops != &nftnl_table_ops)
-		return NULL;
+  if(cache->c_ops != &nftnl_table_ops)
+    return NULL;
 
-	nl_list_for_each_entry(a, &cache->c_items, ce_list) {
-		if (strncmp(a->a_label, name, NFTTABNAMSIZ) == 0)
-			return a;
-	}
+  nl_list_for_each_entry(a, &cache->c_items, ce_list)
+  {
+    if(strncmp(a->a_label, name, NFTTABNAMSIZ) == 0)
+      return a;
+  }
 
-	return NULL;
+  return NULL;
 }
 
 /** @} */
 
-static int build_table_msg(struct nftnl_table *tmpl, int cmd, int flags, struct nl_msg **result)
+static int build_table_msg(struct nftnl_table* tmpl, int cmd, int flags, struct nl_msg** result)
 {
-	struct nl_msg *msg;
-	struct nfgenmsg tm = {
-		.nfgen_family = tmpl->a_family,
-        .version = 0,
-        .res_id = 0
-	};
+  struct nl_msg* msg;
+  struct nfgenmsg tm = {
+    .nfgen_family = tmpl->a_family,
+    .version = 0,
+    .res_id = 0
+  };
 
-	msg = nlmsg_alloc_simple(cmd, flags);
-	if (!msg)
-		return -NLE_NOMEM;
+  msg = nlmsg_alloc_simple(cmd, flags);
+  if(!msg)
+    return -NLE_NOMEM;
 
-	if (nlmsg_append(msg, &tm, sizeof(tm), NLMSG_ALIGNTO) < 0)
-		goto nla_put_failure;
+  if(nlmsg_append(msg, &tm, sizeof(tm), NLMSG_ALIGNTO) < 0)
+    goto nla_put_failure;
 
-	if (tmpl->ce_mask & NFTTAB_ATTR_NAME)
-		NLA_PUT_STRING(msg, NFTA_TABLE_NAME, tmpl->a_label);
+  if(tmpl->ce_mask & NFTTAB_ATTR_NAME)
+    NLA_PUT_STRING(msg, NFTA_TABLE_NAME, tmpl->a_label);
 
-	if (tmpl->ce_mask & NFTTAB_ATTR_FLAGS)
-		NLA_PUT_U32(msg, NFTA_TABLE_FLAGS, tmpl->a_flags);
-	else
-		NLA_PUT_U32(msg, NFTA_TABLE_FLAGS, 0);
+  if(tmpl->ce_mask & NFTTAB_ATTR_FLAGS)
+    NLA_PUT_U32(msg, NFTA_TABLE_FLAGS, tmpl->a_flags);
+  else
+    NLA_PUT_U32(msg, NFTA_TABLE_FLAGS, 0);
 
-	if (tmpl->ce_mask & NFTTAB_ATTR_USE)
-		NLA_PUT_U32(msg, NFTA_TABLE_USE, tmpl->a_use);
+  if(tmpl->ce_mask & NFTTAB_ATTR_USE)
+    NLA_PUT_U32(msg, NFTA_TABLE_USE, tmpl->a_use);
 
-	if (tmpl->ce_mask & NFTTAB_ATTR_HANDLE)
-		NLA_PUT_U64(msg, NFTA_TABLE_HANDLE, tmpl->a_handle);
+  if(tmpl->ce_mask & NFTTAB_ATTR_HANDLE)
+    NLA_PUT_U64(msg, NFTA_TABLE_HANDLE, tmpl->a_handle);
 
-	*result = msg;
-	return 0;
+  *result = msg;
+  return 0;
 
 nla_put_failure:
-	nlmsg_free(msg);
-	return -NLE_MSGSIZE;
+  nlmsg_free(msg);
+  return -NLE_MSGSIZE;
 }
 
 /**
@@ -425,14 +431,14 @@ nla_put_failure:
  *
  * @return 0 on success or a negative error code.
  */
-int nftnl_table_build_add_request(struct nftnl_table *table, int flags, struct nl_msg **result)
+int nftnl_table_build_add_request(struct nftnl_table* table, int flags, struct nl_msg** result)
 {
-	uint32_t required = NFTTAB_ATTR_NAME | NFTTAB_ATTR_FAMILY;
+  uint32_t required = NFTTAB_ATTR_NAME | NFTTAB_ATTR_FAMILY;
 
-	if ((table->ce_mask & required) != required || table->a_family == AF_UNSPEC)
-		return -NLE_MISSING_ATTR;
-	
-	return build_table_msg(table, NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_NEWTABLE, NLM_F_CREATE | flags, result);
+  if((table->ce_mask & required) != required || table->a_family == AF_UNSPEC)
+    return -NLE_MISSING_ATTR;
+
+  return build_table_msg(table, NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_NEWTABLE, NLM_F_CREATE | flags, result);
 }
 
 
@@ -444,40 +450,67 @@ static int nf_batch_send(struct nl_sock* sk, struct nl_msg* msg)
     .version = 0,
     .res_id = 10
   };
+  int err;
 
   //MAKE THE START MESSAGE
   struct nl_msg* start;
   start = nlmsg_alloc_simple(NFNL_MSG_BATCH_BEGIN, 0);
-  nlmsg_append(start, &hdr, sizeof(hdr), NLMSG_ALIGNTO);
-  nl_complete_msg(sk, start);
+  if(!start)
+    return -NLE_NOMEM;
 
-  int startLength = nlmsg_hdr(start)->nlmsg_len;
-
-  nl_complete_msg(sk, msg);
-
+  if(nlmsg_append(start, &hdr, sizeof(hdr), NLMSG_ALIGNTO) < 0)
+  {
+    err = -NLE_NOMEM;
+    goto err_freestart;
+  }
   //MAKE THE END MESSAGE
   struct nl_msg* end;
   end = nlmsg_alloc_simple(NFNL_MSG_BATCH_END, 0);
-  nlmsg_append(end, &hdr, sizeof(hdr), NLMSG_ALIGNTO);
+  if(!end)
+  {
+    err = -NLE_NOMEM;
+    goto err_freestart;
+  }
 
+  if(nlmsg_append(end, &hdr, sizeof(hdr), NLMSG_ALIGNTO) < 0)
+  {
+    err = -NLE_NOMEM;
+    goto err_freeend;
+  }
+
+  //PUT THE SEQUENCE IDS IN THE MESSAGES
+  nl_complete_msg(sk, start);
+  nl_complete_msg(sk, msg);
   nl_complete_msg(sk, end);
 
+  //STORE THE LENGTH OF THE FIRST MESSAGE BECAUSE APPEND WILL CHANGE IT
+  int startLength = nlmsg_hdr(start)->nlmsg_len;
+
   //APPEND THE MESSAGE TO THE START
-  nlmsg_append(start, nlmsg_hdr(msg), nlmsg_hdr(msg)->nlmsg_len, NLMSG_ALIGNTO);
+  if(nlmsg_append(start, nlmsg_hdr(msg), nlmsg_hdr(msg)->nlmsg_len, NLMSG_ALIGNTO) < 0)
+  {
+    err = -NLE_NOMEM;
+    goto err_freeend;
+  }
   //APPEND THE MESSAGE TO THE END
-  nlmsg_append(start, nlmsg_hdr(end), nlmsg_hdr(end)->nlmsg_len, NLMSG_ALIGNTO);
+  if(nlmsg_append(start, nlmsg_hdr(end), nlmsg_hdr(end)->nlmsg_len, NLMSG_ALIGNTO) < 0)
+  {
+    err = -NLE_NOMEM;
+    goto err_freeend;
+  }
 
-
+  //THIS LENGTH IS THE ACTUAL SIZE TO SEND (ALL MESSAGES)
   int finalLength = nlmsg_hdr(start)->nlmsg_len;
+  //PUT THE LENGTH OF THE FIRST MESSAGE BACK INTO THE FIRST MESSAGE
   nlmsg_hdr(start)->nlmsg_len = startLength;
-
-  int err;
+  sk->s_seq_expect++;
   err = nl_send_arb(sk, start, finalLength);
-  printf("SENT MESSAGE %d %d\n", start->nm_size, finalLength);
 
-  nlmsg_free(start);
+err_freeend:
   nlmsg_free(end);
-  if (err < 0)
+err_freestart:
+  nlmsg_free(start);
+  if(err < 0)
     return err;
 
   return 0;
@@ -498,20 +531,22 @@ static int nf_batch_send(struct nl_sock* sk, struct nl_msg* msg)
  *
  * @return 0 on sucess or a negative error if an error occured.
  */
-int nftnl_table_add(struct nl_sock *sk, struct nftnl_table *table, int flags)
+int nftnl_table_add(struct nl_sock* sk, struct nftnl_table* table, int flags)
 {
-	struct nl_msg *msg;
-	int err;
+  struct nl_msg* msg;
+  int err;
 
-	if ((err = nftnl_table_build_add_request(table, flags, &msg)) < 0)
-		return err;
+  if((err = nftnl_table_build_add_request(table, flags, &msg)) < 0)
+    return err;
 
-	err = nf_batch_send(sk, msg);
-	nlmsg_free(msg);
-	if (err < 0)
-		return err;
+  err = nf_batch_send(sk, msg);
+  nlmsg_free(msg);
+  if(err < 0)
+    return err;
 
-	return wait_for_ack(sk);
+  err = wait_for_ack(sk);
+  sk->s_seq_expect++;
+  return err;
 }
 
 /** @} */
@@ -545,14 +580,14 @@ int nftnl_table_add(struct nl_sock *sk, struct nftnl_table *table, int flags)
  *
  * @return 0 on success or a negative error code.
  */
-int nftnl_table_build_delete_request(struct nftnl_table *table, int flags, struct nl_msg **result)
+int nftnl_table_build_delete_request(struct nftnl_table* table, int flags, struct nl_msg** result)
 {
-	uint32_t required = NFTTAB_ATTR_FAMILY | NFTTAB_ATTR_NAME;
+  uint32_t required = NFTTAB_ATTR_FAMILY | NFTTAB_ATTR_NAME;
 
-	if ((table->ce_mask & required) != required)
-		return -NLE_MISSING_ATTR;
+  if((table->ce_mask & required) != required)
+    return -NLE_MISSING_ATTR;
 
-	return build_table_msg(table, NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_DELTABLE, flags, result);
+  return build_table_msg(table, NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_DELTABLE, flags, result);
 }
 
 /**
@@ -569,20 +604,22 @@ int nftnl_table_build_delete_request(struct nftnl_table *table, int flags, struc
  *
  * @return 0 on sucess or a negative error if an error occured.
  */
-int nftnl_table_delete(struct nl_sock *sk, struct nftnl_table *table, int flags)
+int nftnl_table_delete(struct nl_sock* sk, struct nftnl_table* table, int flags)
 {
-	struct nl_msg *msg;
-	int err;
+  struct nl_msg* msg;
+  int err;
 
-	if ((err = nftnl_table_build_delete_request(table, flags, &msg)) < 0)
-		return err;
+  if((err = nftnl_table_build_delete_request(table, flags, &msg)) < 0)
+    return err;
 
-	err = nf_batch_send(sk, msg);
-	nlmsg_free(msg);
-	if (err < 0)
-		return err;
+  err = nf_batch_send(sk, msg);
+  nlmsg_free(msg);
+  if(err < 0)
+    return err;
 
-	return wait_for_ack(sk);
+  err = wait_for_ack(sk);
+  sk->s_seq_expect++;
+  return err;
 }
 
 /** @} */
@@ -592,55 +629,55 @@ int nftnl_table_delete(struct nl_sock *sk, struct nftnl_table *table, int flags)
  * @{
  */
 
-int nftnl_table_set_name(struct nftnl_table *table, const char *name)
+int nftnl_table_set_name(struct nftnl_table* table, const char* name)
 {
-	if (strlen(name) > sizeof(table->a_label) - 1)
-		return -NLE_RANGE;
+  if(strlen(name) > sizeof(table->a_label) - 1)
+    return -NLE_RANGE;
 
-	strcpy(table->a_label, name);
-	table->ce_mask |= NFTTAB_ATTR_NAME;
+  strcpy(table->a_label, name);
+  table->ce_mask |= NFTTAB_ATTR_NAME;
 
-	return 0;
+  return 0;
 }
 
-char *nftnl_table_get_name(struct nftnl_table *table)
+char* nftnl_table_get_name(struct nftnl_table* table)
 {
-	if (table->ce_mask & NFTTAB_ATTR_NAME)
-		return table->a_label;
-	else
-		return NULL;
+  if(table->ce_mask & NFTTAB_ATTR_NAME)
+    return table->a_label;
+  else
+    return NULL;
 }
 
-int nftnl_table_set_handle(struct nftnl_table *table, uint64_t handle)
+int nftnl_table_set_handle(struct nftnl_table* table, uint64_t handle)
 {
-	table->a_handle = handle;
-	table->ce_mask |= NFTTAB_ATTR_HANDLE;
+  table->a_handle = handle;
+  table->ce_mask |= NFTTAB_ATTR_HANDLE;
 
-	return 0;
+  return 0;
 }
 
-uint64_t nftnl_table_get_handle(struct nftnl_table *table)
+uint64_t nftnl_table_get_handle(struct nftnl_table* table)
 {
-	if (table->ce_mask & NFTTAB_ATTR_HANDLE)
-		return table->a_handle;
-	else
-		return NULL;
+  if(table->ce_mask & NFTTAB_ATTR_HANDLE)
+    return table->a_handle;
+  else
+    return NULL;
 }
 
-int nftnl_table_set_family(struct nftnl_table *table, uint32_t family)
+int nftnl_table_set_family(struct nftnl_table* table, uint32_t family)
 {
-	table->a_family = family;
-	table->ce_mask |= NFTTAB_ATTR_FAMILY;
+  table->a_family = family;
+  table->ce_mask |= NFTTAB_ATTR_FAMILY;
 
-	return 0;
+  return 0;
 }
 
-uint32_t nftnl_table_get_family(struct nftnl_table *table)
+uint32_t nftnl_table_get_family(struct nftnl_table* table)
 {
-	if (table->ce_mask & NFTTAB_ATTR_FAMILY)
-		return table->a_family;
-	else
-		return NULL;
+  if(table->ce_mask & NFTTAB_ATTR_FAMILY)
+    return table->a_family;
+  else
+    return NULL;
 }
 
 /** @} */
@@ -653,58 +690,62 @@ uint32_t nftnl_table_get_family(struct nftnl_table *table)
 static const struct trans_tbl table_flags[] = {
 };
 
-char *nftnl_table_flags2str(int flags, char *buf, size_t size)
+char* nftnl_table_flags2str(int flags, char* buf, size_t size)
 {
-	return __flags2str(flags, buf, size, table_flags, ARRAY_SIZE(table_flags));
+  return __flags2str(flags, buf, size, table_flags, ARRAY_SIZE(table_flags));
 }
 
-int rtnl_addr_str2flags(const char *name)
+int rtnl_addr_str2flags(const char* name)
 {
-	return __str2flags(name, table_flags, ARRAY_SIZE(table_flags));
+  return __str2flags(name, table_flags, ARRAY_SIZE(table_flags));
 }
 
 /** @} */
 
 static struct nl_object_ops table_obj_ops = {
-	.oo_name		= "netfilter/table",
-	.oo_size		= sizeof(struct nftnl_table),
-	.oo_constructor		= table_constructor,
-	.oo_free_data		= table_free_data,
-	.oo_clone		= table_clone,
-	.oo_dump = {
-	    [NL_DUMP_LINE] 	= table_dump_line,
-	    [NL_DUMP_DETAILS]	= table_dump_details,
-	    [NL_DUMP_STATS]	= table_dump_stats,
-	},
-	.oo_compare		= table_compare,
-	.oo_attrs2str		= table_attrs2str,
-	.oo_id_attrs_get	= table_id_attrs_get,
-	.oo_id_attrs		= (NFTTAB_ATTR_HANDLE | NFTTAB_ATTR_FAMILY | NFTTAB_ATTR_NAME),
+  .oo_name    = "netfilter/table",
+  .oo_size    = sizeof(struct nftnl_table),
+  .oo_constructor    = table_constructor,
+  .oo_free_data    = table_free_data,
+  .oo_clone    = table_clone,
+  .oo_dump = {
+    [NL_DUMP_LINE]  = table_dump_line,
+    [NL_DUMP_DETAILS]  = table_dump_details,
+    [NL_DUMP_STATS]  = table_dump_stats,
+  },
+  .oo_compare    = table_compare,
+  .oo_attrs2str    = table_attrs2str,
+  .oo_id_attrs_get  = table_id_attrs_get,
+  .oo_id_attrs    = (NFTTAB_ATTR_HANDLE | NFTTAB_ATTR_FAMILY | NFTTAB_ATTR_NAME),
 };
 
 static struct nl_cache_ops nftnl_table_ops = {
-	.co_name		= "netfilter/table",
-	.co_hdrsize		= sizeof(struct nfgenmsg),
-	.co_msgtypes		= {
-					{ NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_NEWTABLE, NL_ACT_NEW, "new" },
-					{ NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_DELTABLE, NL_ACT_DEL, "del" },
-					{ NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_GETTABLE, NL_ACT_GET, "get" },
-					END_OF_MSGTYPES_LIST,
-				  },
-	.co_protocol		= NETLINK_NETFILTER,
-	.co_request_update      = table_request_update,
-	.co_msg_parser          = table_msg_parser,
-	.co_obj_ops		= &table_obj_ops,
+  .co_name    = "netfilter/table",
+  .co_hdrsize    = sizeof(struct nfgenmsg),
+  .co_msgtypes    = {
+    {NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_NEWTABLE, NL_ACT_NEW, "new"},
+    {NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_DELTABLE, NL_ACT_DEL, "del"},
+    {NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_GETTABLE, NL_ACT_GET, "get"},
+    END_OF_MSGTYPES_LIST,
+  },
+  .co_protocol    = NETLINK_NETFILTER,
+  .co_request_update      = table_request_update,
+  .co_msg_parser          = table_msg_parser,
+  .co_obj_ops    = &table_obj_ops,
 };
 
-static void __init table_init(void)
+static void __init
+
+table_init(void)
 {
-	nl_cache_mngt_register(&nftnl_table_ops);
+  nl_cache_mngt_register(&nftnl_table_ops);
 }
 
-static void __exit table_exit(void)
+static void __exit
+
+table_exit(void)
 {
-	nl_cache_mngt_unregister(&nftnl_table_ops);
+  nl_cache_mngt_unregister(&nftnl_table_ops);
 }
 
 /** @} */
