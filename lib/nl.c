@@ -454,6 +454,22 @@ int nl_send(struct nl_sock *sk, struct nl_msg *msg)
 	}
 }
 
+int nl_send_arb(struct nl_sock *sk, struct nl_msg *msg, int len)
+{
+  struct nl_cb *cb = sk->s_cb;
+
+  if (cb->cb_send_ow)
+    return cb->cb_send_ow(sk, msg);
+  else {
+    struct iovec iov = {
+      .iov_base = (void *) nlmsg_hdr(msg),
+      .iov_len = len,
+    };
+
+    return nl_send_iovec(sk, msg, &iov, 1);
+  }
+}
+
 /**
  * Finalize Netlink message
  * @arg sk		Netlink socket (required)

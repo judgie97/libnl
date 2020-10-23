@@ -190,6 +190,7 @@ global:
 	nl_recvmsgs_default;
 	nl_recvmsgs_report;
 	nl_send;
+	nl_send_arb;
 	nl_send_auto;
 	nl_send_auto_complete;
 	nl_send_iovec;

@@ -435,6 +435,55 @@ int nftnl_table_build_add_request(struct nftnl_table *table, int flags, struct n
 	return build_table_msg(table, NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_NEWTABLE, NLM_F_CREATE | flags, result);
 }
 
+
+static int nf_batch_send(struct nl_sock* sk, struct nl_msg* msg)
+{
+  //HEADER FOR BOTH
+  struct nfgenmsg hdr = {
+    .nfgen_family = AF_UNSPEC,
+    .version = 0,
+    .res_id = 10
+  };
+
+  //MAKE THE START MESSAGE
+  struct nl_msg* start;
+  start = nlmsg_alloc_simple(NFNL_MSG_BATCH_BEGIN, 0);
+  nlmsg_append(start, &hdr, sizeof(hdr), NLMSG_ALIGNTO);
+  nl_complete_msg(sk, start);
+
+  int startLength = nlmsg_hdr(start)->nlmsg_len;
+
+  nl_complete_msg(sk, msg);
+
+  //MAKE THE END MESSAGE
+  struct nl_msg* end;
+  end = nlmsg_alloc_simple(NFNL_MSG_BATCH_END, 0);
+  nlmsg_append(end, &hdr, sizeof(hdr), NLMSG_ALIGNTO);
+
+  nl_complete_msg(sk, end);
+
+  //APPEND THE MESSAGE TO THE START
+  nlmsg_append(start, nlmsg_hdr(msg), nlmsg_hdr(msg)->nlmsg_len, NLMSG_ALIGNTO);
+  //APPEND THE MESSAGE TO THE END
+  nlmsg_append(start, nlmsg_hdr(end), nlmsg_hdr(end)->nlmsg_len, NLMSG_ALIGNTO);
+
+
+  int finalLength = nlmsg_hdr(start)->nlmsg_len;
+  nlmsg_hdr(start)->nlmsg_len = startLength;
+
+  int err;
+  err = nl_send_arb(sk, start, finalLength);
+  printf("SENT MESSAGE %d %d\n", start->nm_size, finalLength);
+
+  nlmsg_free(start);
+  nlmsg_free(end);
+  if (err < 0)
+    return err;
+
+  return 0;
+}
+
+
 /**
  * Request addition of new address
  * @arg sk		Netlink socket.
@@ -457,7 +506,7 @@ int nftnl_table_add(struct nl_sock *sk, struct nftnl_table *table, int flags)
 	if ((err = nftnl_table_build_add_request(table, flags, &msg)) < 0)
 		return err;
 
-	err = nl_send_auto_complete(sk, msg);
+	err = nf_batch_send(sk, msg);
 	nlmsg_free(msg);
 	if (err < 0)
 		return err;
@@ -528,7 +577,7 @@ int nftnl_table_delete(struct nl_sock *sk, struct nftnl_table *table, int flags)
 	if ((err = nftnl_table_build_delete_request(table, flags, &msg)) < 0)
 		return err;
 
-	err = nl_send_auto_complete(sk, msg);
+	err = nf_batch_send(sk, msg);
 	nlmsg_free(msg);
 	if (err < 0)
 		return err;
