@@ -3,8 +3,8 @@
  * Copyright (c) 2007, 2008 Patrick McHardy <kaber@trash.net>
  */
 
-#ifndef NETLINK_TABLE_H_
-#define NETLINK_TABLE_H_
+#ifndef NETLINK_CHAIN_H_
+#define NETLINK_CHAIN_H_
 
 #include <netlink/netlink.h>
 
