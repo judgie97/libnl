@@ -6,7 +6,7 @@
  */
 
 
-//TODO This should be a code example of adding a new table using this shit
+//TODO This should be a code example of adding a new chain using this shit
 /**
  * @ingroup rtnl
  * @defgroup rtaddr Addresses
@@ -104,140 +104,159 @@
 
 #include <netlink-private/netlink.h>
 #include <netlink/netlink.h>
-#include <netlink/netfilter/table.h>
+#include <netlink/netfilter/nft_chain.h>
 #include <netlink/utils.h>
 #include <linux/netfilter/nf_tables.h>
 
-
 /** @cond SKIP */
-#define NFTTAB_ATTR_NAME  0x0001
-#define NFTTAB_ATTR_HANDLE  0x0002
-#define NFTTAB_ATTR_FLAGS   0x0004
-#define NFTTAB_ATTR_USE    0x0008
-#define NFTTAB_ATTR_FAMILY  0x0010
+#define NFTCHA_ATTR_TABLE  0x0001
+#define NFTCHA_ATTR_HANDLE  0x0002
+#define NFTCHA_ATTR_NAME   0x0004
+#define NFTCHA_ATTR_HOOK    0x0008
+#define NFTCHA_ATTR_POLICY  0x0010
+#define NFTCHA_ATTR_USE  0x0020
+#define NFTCHA_ATTR_TYPE  0x0040
+#define NFTCHA_ATTR_COUNTERS  0x0080
+#define NFTCHA_ATTR_FLAGS  0x0100
 
-static struct nl_cache_ops nftnl_table_ops;
-static struct nl_object_ops table_obj_ops;
+static struct nl_cache_ops nftnl_chain_ops;
+static struct nl_object_ops chain_obj_ops;
 
 /** @endcond */
 
-static void table_constructor(struct nl_object* obj)
+static void chain_constructor(struct nl_object* obj)
 {
-  struct nftnl_table* table = nl_object_priv(obj);
+  struct nftnl_chain* chain = nl_object_priv(obj);
 
-  table->a_label[0] = 0;
-  table->a_flags = 0;
-  table->a_family = AF_UNSPEC;
+  chain->a_name[0] = 0;
+  chain->a_type[0] = 0;
+  chain->a_flags = 0;
 }
 
-static void table_free_data(struct nl_object* obj)
+static void chain_free_data(struct nl_object* obj)
 {
-  struct nftnl_table* table = nl_object_priv(obj);
+  struct nftnl_chain* chain = nl_object_priv(obj);
 
-  if(!table)
+  if(!chain)
     return;
 
-  //if other objects get stored in tables they need to be put back into their caches so they can be deleted later
+  //if other objects get stored in chains they need to be put back into their caches so they can be deleted later
 }
 
-static int table_clone(struct nl_object* _dst, struct nl_object* _src)
+static int chain_clone(struct nl_object* _dst, struct nl_object* _src)
 {
-  struct nftnl_table* dst = nl_object_priv(_dst);
-  struct nftnl_table* src = nl_object_priv(_src);
+  struct nftnl_chain* dst = nl_object_priv(_dst);
+  struct nftnl_chain* src = nl_object_priv(_src);
 
-  dst->a_family = src->a_family;
-  dst->a_flags = src->a_flags;
-  dst->a_use = src->a_use;
+  //TODO ADD MISSNG ATTRS HERE
   dst->a_handle = src->a_handle;
-  strncpy(dst->a_label, src->a_label, NFTTABNAMSIZ);
+  dst->a_policy = src->a_policy;
+  dst->a_use = src->a_use;
+  dst->a_flags = src->a_flags;
+  strncpy(dst->a_name, src->a_name, NFTCHANAMSIZ);
+  strncpy(dst->a_type, src->a_type, NFTCHATYPSIZ);
 
   return 0;
 }
 
-static struct nla_policy table_policy[IFA_MAX + 1] = {
-  [NFTA_TABLE_NAME]  = {.type = NLA_STRING, .maxlen = NFTTABNAMSIZ},
-  [NFTA_TABLE_FLAGS]  = {.type = NLA_U32},
-  [NFTA_TABLE_USE]  = {.type = NLA_U32},
-  [NFTA_TABLE_HANDLE]  = {.type = NLA_S64},
-  [NFTA_TABLE_PAD]  = {.type = NLA_U32},
+static struct nla_policy chain_policy[NFTA_CHAIN_MAX + 1] = {
+  [NFTA_CHAIN_TABLE]  = {.type = NLA_STRING, .maxlen = NFTTABNAMSIZ},
+  [NFTA_CHAIN_HANDLE]  = {.type = NLA_U64},
+  [NFTA_CHAIN_NAME]  = {.type = NLA_STRING, .maxlen = NFTCHANAMSIZ},
+  [NFTA_CHAIN_HOOK]  = {.type = NLA_NESTED},
+  [NFTA_CHAIN_POLICY]  = {.type = NLA_U32},
+  [NFTA_CHAIN_USE]  = {.type = NLA_U32},
+  [NFTA_CHAIN_TYPE]  = {.type = NLA_NUL_STRING},
+  [NFTA_CHAIN_COUNTERS]  = {.type = NLA_NESTED},
+  [NFTA_CHAIN_FLAGS]  = {.type = NLA_U32},
 };
 
-uint64_t swap_order(uint64_t original)
-{
-  uint8_t* bytes = (uint8_t * ) & original;
-  uint64_t output = 0;
+uint64_t swap_order(uint64_t original); //TODO WORK OUT HOW TO ACTUALLY INCLUDE THIS
 
-  uint8_t* newBytes = (uint8_t * ) & output;
-  for(int i = 0; i < 8; i++)
-    newBytes[i] = bytes[7 - i];
-  return output;
-}
-
-static int table_msg_parser(struct nl_cache_ops* ops, struct sockaddr_nl* who,
+static int chain_msg_parser(struct nl_cache_ops* ops, struct sockaddr_nl* who,
                             struct nlmsghdr* nlh, struct nl_parser_param* pp)
 {
-  struct nftnl_table* table;
+  struct nftnl_chain* chain;
   struct nfgenmsg* hdr;
-  struct nlattr* tb[__NFTA_TABLE_MAX + 1];
+  struct nlattr* tb[__NFTA_CHAIN_MAX + 1];
   int err;
 
-  table = nftnl_table_alloc();
-  if(!table)
+  chain = nftnl_chain_alloc();
+  if(!chain)
     return -NLE_NOMEM;
 
-  table->ce_msgtype = nlh->nlmsg_type;
+  chain->ce_msgtype = nlh->nlmsg_type;
 
-  err = nlmsg_parse(nlh, sizeof(*hdr), tb, __NFTA_TABLE_MAX, table_policy);
+  err = nlmsg_parse(nlh, sizeof(*hdr), tb, __NFTA_CHAIN_MAX, chain_policy);
   if(err < 0)
     goto errout;
 
-  hdr = nlmsg_data(nlh);
-  table->a_family = hdr->nfgen_family;
-  table->ce_mask = NFTTAB_ATTR_FAMILY;
-
-  if(tb[NFTA_TABLE_NAME])
+  if(tb[NFTA_CHAIN_TABLE])
   {
-    nla_strlcpy(table->a_label, tb[NFTA_TABLE_NAME], NFTTABNAMSIZ);
-    table->ce_mask |= NFTTAB_ATTR_NAME;
+    //TODO GET THAT TABLE AND SAVE IT IN THE THINGY
   }
 
-  if(tb[NFTA_TABLE_FLAGS])
+  if(tb[NFTA_CHAIN_HANDLE])
   {
-    table->a_flags = *(uint32_t*) nla_data(tb[NFTA_TABLE_FLAGS]);
-    table->ce_mask |= NFTTAB_ATTR_FLAGS;
+    chain->a_handle = swap_order(*(uint64_t*) nla_data(tb[NFTA_CHAIN_HANDLE]));
+    chain->ce_mask |= NFTCHA_ATTR_HANDLE;
   }
 
-  if(tb[NFTA_TABLE_USE])
+  if(tb[NFTA_CHAIN_NAME])
   {
-    table->a_use = *(uint32_t*) nla_data(tb[NFTA_TABLE_USE]);
-    table->ce_mask |= NFTTAB_ATTR_USE;
+    nla_strlcpy(chain->a_name, tb[NFTA_CHAIN_NAME], NFTCHANAMSIZ);
+    chain->ce_mask |= NFTCHA_ATTR_NAME;
   }
 
-  if(tb[NFTA_TABLE_HANDLE])
+  if(tb[NFTA_CHAIN_HOOK])
   {
-    table->a_handle = swap_order(*(uint64_t*) nla_data(tb[NFTA_TABLE_HANDLE]));
-    table->ce_mask |= NFTTAB_ATTR_HANDLE;
+    //TODO NESTED PARSING!
   }
 
-  err = pp->pp_cb((struct nl_object*) table, pp);
+  if(tb[NFTA_CHAIN_POLICY])
+  {
+    chain->a_policy = *(uint32_t*) nla_data(tb[NFTA_CHAIN_POLICY]);
+    chain->ce_mask |= NFTCHA_ATTR_POLICY;
+  }
+
+  if(tb[NFTA_CHAIN_USE])
+  {
+    chain->a_use = *(uint32_t*) nla_data(tb[NFTA_CHAIN_USE]);
+    chain->ce_mask |= NFTCHA_ATTR_USE;
+  }
+
+  if(tb[NFTA_CHAIN_TYPE])
+  {
+    nla_strlcpy(chain->a_type, tb[NFTA_CHAIN_TYPE], NFTCHATYPSIZ);
+    chain->ce_mask |= NFTCHA_ATTR_TYPE;
+  }
+
+  if(tb[NFTA_CHAIN_COUNTERS])
+  {
+    //TODO STORE THESE SOMEWHERE
+  }
+
+  if(tb[NFTA_CHAIN_FLAGS])
+  {
+    chain->a_flags = *(uint32_t*) nla_data(tb[NFTA_CHAIN_FLAGS]);
+    chain->ce_mask |= NFTCHA_ATTR_FLAGS;
+  }
+
+  err = pp->pp_cb((struct nl_object*) chain, pp);
 errout:
-  nftnl_table_put(table);
+  nftnl_chain_put(chain);
 
   return err;
-
-errout_nomem:
-  err = -NLE_NOMEM;
-  goto errout;
 }
 
-static int table_request_update(struct nl_cache* cache, struct nl_sock* sk)
+static int chain_request_update(struct nl_cache* cache, struct nl_sock* sk)
 {
-  return nl_rtgen_request(sk, NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_GETTABLE, AF_UNSPEC, NLM_F_DUMP);
+  return nl_rtgen_request(sk, NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_GETCHAIN, AF_UNSPEC, NLM_F_DUMP);
 }
 
-static void table_dump_line(struct nl_object* obj, struct nl_dump_params* p)
+static void chain_dump_line(struct nl_object* obj, struct nl_dump_params* p) //TODO
 {
-  struct nftnl_table* table = (struct nftnl_table*) obj;
+  /*struct nftnl_table* table = (struct nftnl_table*) obj;
   char buf[128];
 
   if(table->ce_mask & NFTTAB_ATTR_NAME)
@@ -254,57 +273,62 @@ static void table_dump_line(struct nl_object* obj, struct nl_dump_params* p)
   if(buf[0])
     nl_dump(p, " <%s>", buf);
 
-  nl_dump(p, "\n");
+  nl_dump(p, "\n");*/
 }
 
-static void table_dump_details(struct nl_object* obj, struct nl_dump_params* p)
+static void chain_dump_details(struct nl_object* obj, struct nl_dump_params* p)
 {
-  table_dump_line(obj, p);
+  chain_dump_line(obj, p);
 }
 
-static void table_dump_stats(struct nl_object* obj, struct nl_dump_params* p)
+static void chain_dump_stats(struct nl_object* obj, struct nl_dump_params* p)
 {
-  table_dump_details(obj, p);
+  chain_dump_details(obj, p);
 }
 
-static uint32_t table_id_attrs_get(struct nl_object* obj)
+static uint32_t chain_id_attrs_get(struct nl_object* obj)
 {
-  return NFTTAB_ATTR_HANDLE | NFTTAB_ATTR_FAMILY | NFTTAB_ATTR_NAME;
+  return NFTCHA_ATTR_HANDLE | NFTCHA_ATTR_TABLE | NFTCHA_ATTR_NAME;
 
 }
 
-static uint64_t table_compare(struct nl_object* _a, struct nl_object* _b,
+static uint64_t chain_compare(struct nl_object* _a, struct nl_object* _b,
                               uint64_t attrs, int flags)
 {
-  struct nftnl_table* a = (struct nftnl_table*) _a;
-  struct nftnl_table* b = (struct nftnl_table*) _b;
+  struct nftnl_chain* a = (struct nftnl_chain*) _a;
+  struct nftnl_chain* b = (struct nftnl_chain*) _b;
   uint64_t diff = 0;
 
-#define NFTTAB_DIFF(ATTR, EXPR) ATTR_DIFF(attrs, NFTTAB_ATTR_##ATTR, a, b, EXPR)
+#define NFTCHA_DIFF(ATTR, EXPR) ATTR_DIFF(attrs, NFTCHA_ATTR_##ATTR, a, b, EXPR)
 
-  diff |= NFTTAB_DIFF(NAME, strncmp(a->a_label, b->a_label, NFTTABNAMSIZ) != 0);
-  diff |= NFTTAB_DIFF(FAMILY, a->a_family != b->a_family);
-  diff |= NFTTAB_DIFF(USE, a->a_use != b->a_use);
-  diff |= NFTTAB_DIFF(HANDLE, a->a_handle != b->a_handle);
-  diff |= NFTTAB_DIFF(FLAGS, a->a_flags != b->a_flags);
+  //TODO ADD THE MISSING ATTRS
+  diff |= NFTCHA_DIFF(HANDLE, a->a_handle != b->a_handle);
+  diff |= NFTCHA_DIFF(NAME, strncmp(a->a_name, b->a_name, NFTCHANAMSIZ) != 0);
+  diff |= NFTCHA_DIFF(POLICY, a->a_policy != b->a_policy);
+  diff |= NFTCHA_DIFF(USE, a->a_use != b->a_use);
+  diff |= NFTCHA_DIFF(TYPE, strncmp(a->a_type, b->a_type, NFTCHATYPSIZ) != 0);
+  diff |= NFTCHA_DIFF(FLAGS, a->a_flags != b->a_flags);
 
-#undef NFTTAB_DIFF
+#undef NFTCHA_DIFF
 
   return diff;
 }
 
-static const struct trans_tbl table_attrs[] = {
-  __ADD(NFTTAB_ATTR_FAMILY, family),
-  __ADD(NFTTAB_ATTR_FLAGS, flags),
-  __ADD(NFTTAB_ATTR_NAME, name),
-  __ADD(NFTTAB_ATTR_USE, use),
-  __ADD(NFTTAB_ATTR_HANDLE, handle)
+static const struct trans_tbl chain_attrs[] = {
+  __ADD(NFTCHA_ATTR_TABLE, table),
+  __ADD(NFTCHA_ATTR_HANDLE, handle),
+  __ADD(NFTCHA_ATTR_NAME, name),
+  __ADD(NFTCHA_ATTR_POLICY, policy),
+  __ADD(NFTCHA_ATTR_USE, use),
+  __ADD(NFTCHA_ATTR_TYPE, type),
+  __ADD(NFTCHA_ATTR_COUNTERS, counters),
+  __ADD(NFTCHA_ATTR_FLAGS, flags)
 };
 
-static char* table_attrs2str(int attrs, char* buf, size_t len)
+static char* chain_attrs2str(int attrs, char* buf, size_t len)
 {
-  return __flags2str(attrs, buf, len, table_attrs,
-                     ARRAY_SIZE(table_attrs));
+  return __flags2str(attrs, buf, len, chain_attrs,
+                     ARRAY_SIZE(chain_attrs));
 }
 
 /**
@@ -312,14 +336,14 @@ static char* table_attrs2str(int attrs, char* buf, size_t len)
  * @{
  */
 
-struct nftnl_table* nftnl_table_alloc(void)
+struct nftnl_chain* nftnl_chain_alloc(void)
 {
-  return (struct nftnl_table*) nl_object_alloc(&table_obj_ops);
+  return (struct nftnl_chain*) nl_object_alloc(&chain_obj_ops);
 }
 
-void nftnl_table_put(struct nftnl_table* table)
+void nftnl_chain_put(struct nftnl_chain* chain)
 {
-  nl_object_put((struct nl_object*) table);
+  nl_object_put((struct nl_object*) chain);
 }
 
 /** @} */
@@ -329,9 +353,9 @@ void nftnl_table_put(struct nftnl_table* table)
  * @{
  */
 
-int nftnl_table_alloc_cache(struct nl_sock* sk, struct nl_cache** result)
+int nftnl_chain_alloc_cache(struct nl_sock* sk, struct nl_cache** result)
 {
-  return nl_cache_alloc_and_fill(&nftnl_table_ops, sk, result);
+  return nl_cache_alloc_and_fill(&nftnl_chain_ops, sk, result);
 }
 
 /**
@@ -348,16 +372,16 @@ int nftnl_table_alloc_cache(struct nl_sock* sk, struct nl_cache** result)
  *
  * @return Address object or NULL if no match was found.
  */
-struct nftnl_table* nftnl_table_get(struct nl_cache* cache, char* name)
+struct nftnl_chain* nftnl_chain_get(struct nl_cache* cache, char* name)
 {
-  struct nftnl_table* a;
+  struct nftnl_chain* a;
 
-  if(cache->c_ops != &nftnl_table_ops)
+  if(cache->c_ops != &nftnl_chain_ops)
     return NULL;
 
   nl_list_for_each_entry(a, &cache->c_items, ce_list)
   {
-    if(strncmp(a->a_label, name, NFTTABNAMSIZ) == 0)
+    if(strncmp(a->a_name, name, NFTCHANAMSIZ) == 0)
       return a;
   }
 
@@ -366,7 +390,7 @@ struct nftnl_table* nftnl_table_get(struct nl_cache* cache, char* name)
 
 /** @} */
 
-static int build_table_msg(struct nftnl_table* tmpl, int cmd, int flags, struct nl_msg** result)
+/*static int build_table_msg(struct nftnl_table* tmpl, int cmd, int flags, struct nl_msg** result) //TODO
 {
   struct nl_msg* msg;
   struct nfgenmsg tm = {
@@ -431,7 +455,7 @@ nla_put_failure:
  *
  * @return 0 on success or a negative error code.
  */
-int nftnl_table_build_add_request(struct nftnl_table* table, int flags, struct nl_msg** result)
+/*int nftnl_table_build_add_request(struct nftnl_table* table, int flags, struct nl_msg** result) //TODO
 {
   uint32_t required = NFTTAB_ATTR_NAME | NFTTAB_ATTR_FAMILY;
 
@@ -442,7 +466,7 @@ int nftnl_table_build_add_request(struct nftnl_table* table, int flags, struct n
 }
 
 
-static int nf_batch_send(struct nl_sock* sk, struct nl_msg* msg)
+static int nf_batch_send(struct nl_sock* sk, struct nl_msg* msg) //TODO
 {
   //HEADER FOR BOTH
   struct nfgenmsg hdr = {
@@ -531,7 +555,7 @@ err_freestart:
  *
  * @return 0 on sucess or a negative error if an error occured.
  */
-int nftnl_table_add(struct nl_sock* sk, struct nftnl_table* table, int flags)
+/*int nftnl_table_add(struct nl_sock* sk, struct nftnl_table* table, int flags) //TODO
 {
   struct nl_msg* msg;
   int err;
@@ -580,7 +604,7 @@ int nftnl_table_add(struct nl_sock* sk, struct nftnl_table* table, int flags)
  *
  * @return 0 on success or a negative error code.
  */
-int nftnl_table_build_delete_request(struct nftnl_table* table, int flags, struct nl_msg** result)
+/*int nftnl_table_build_delete_request(struct nftnl_table* table, int flags, struct nl_msg** result) //TODO
 {
   uint32_t required = NFTTAB_ATTR_FAMILY | NFTTAB_ATTR_NAME;
 
@@ -604,7 +628,7 @@ int nftnl_table_build_delete_request(struct nftnl_table* table, int flags, struc
  *
  * @return 0 on sucess or a negative error if an error occured.
  */
-int nftnl_table_delete(struct nl_sock* sk, struct nftnl_table* table, int flags)
+/*int nftnl_table_delete(struct nl_sock* sk, struct nftnl_table* table, int flags)//TODO
 {
   struct nl_msg* msg;
   int err;
@@ -629,56 +653,8 @@ int nftnl_table_delete(struct nl_sock* sk, struct nftnl_table* table, int flags)
  * @{
  */
 
-int nftnl_table_set_name(struct nftnl_table* table, const char* name)
-{
-  if(strlen(name) > sizeof(table->a_label) - 1)
-    return -NLE_RANGE;
+//TODO ATTRIBUTES GETTERS SETTERS
 
-  strcpy(table->a_label, name);
-  table->ce_mask |= NFTTAB_ATTR_NAME;
-
-  return 0;
-}
-
-char* nftnl_table_get_name(struct nftnl_table* table)
-{
-  if(table->ce_mask & NFTTAB_ATTR_NAME)
-    return table->a_label;
-  else
-    return NULL;
-}
-
-int nftnl_table_set_handle(struct nftnl_table* table, uint64_t handle)
-{
-  table->a_handle = handle;
-  table->ce_mask |= NFTTAB_ATTR_HANDLE;
-
-  return 0;
-}
-
-uint64_t nftnl_table_get_handle(struct nftnl_table* table)
-{
-  if(table->ce_mask & NFTTAB_ATTR_HANDLE)
-    return table->a_handle;
-  else
-    return NULL;
-}
-
-int nftnl_table_set_family(struct nftnl_table* table, uint32_t family)
-{
-  table->a_family = family;
-  table->ce_mask |= NFTTAB_ATTR_FAMILY;
-
-  return 0;
-}
-
-uint32_t nftnl_table_get_family(struct nftnl_table* table)
-{
-  if(table->ce_mask & NFTTAB_ATTR_FAMILY)
-    return table->a_family;
-  else
-    return NULL;
-}
 
 /** @} */
 
@@ -687,65 +663,56 @@ uint32_t nftnl_table_get_family(struct nftnl_table* table)
  * @{
  */
 
-static const struct trans_tbl table_flags[] = {
+static const struct trans_tbl chain_flags[] = {
 };
 
-char* nftnl_table_flags2str(int flags, char* buf, size_t size)
+char* nftnl_chain_flags2str(int flags, char* buf, size_t size)
 {
-  return __flags2str(flags, buf, size, table_flags, ARRAY_SIZE(table_flags));
-}
-
-int rtnl_addr_str2flags(const char* name)
-{
-  return __str2flags(name, table_flags, ARRAY_SIZE(table_flags));
+  return __flags2str(flags, buf, size, chain_flags, ARRAY_SIZE(chain_flags));
 }
 
 /** @} */
 
-static struct nl_object_ops table_obj_ops = {
-  .oo_name    = "netfilter/table",
-  .oo_size    = sizeof(struct nftnl_table),
-  .oo_constructor    = table_constructor,
-  .oo_free_data    = table_free_data,
-  .oo_clone    = table_clone,
+static struct nl_object_ops chain_obj_ops = {
+  .oo_name    = "netfilter/chain",
+  .oo_size    = sizeof(struct nftnl_chain),
+  .oo_constructor    = chain_constructor,
+  .oo_free_data    = chain_free_data,
+  .oo_clone    = chain_clone,
   .oo_dump = {
-    [NL_DUMP_LINE]  = table_dump_line,
-    [NL_DUMP_DETAILS]  = table_dump_details,
-    [NL_DUMP_STATS]  = table_dump_stats,
+    [NL_DUMP_LINE]  = chain_dump_line,
+    [NL_DUMP_DETAILS]  = chain_dump_details,
+    [NL_DUMP_STATS]  = chain_dump_stats,
   },
-  .oo_compare    = table_compare,
-  .oo_attrs2str    = table_attrs2str,
-  .oo_id_attrs_get  = table_id_attrs_get,
-  .oo_id_attrs    = (NFTTAB_ATTR_HANDLE | NFTTAB_ATTR_FAMILY | NFTTAB_ATTR_NAME),
+  .oo_compare    = chain_compare,
+  .oo_attrs2str    = chain_attrs2str,
+  .oo_id_attrs_get  = chain_id_attrs_get,
+  .oo_id_attrs    = (NFTCHA_ATTR_HANDLE | NFTCHA_ATTR_TABLE | NFTCHA_ATTR_NAME),
 };
 
-static struct nl_cache_ops nftnl_table_ops = {
-  .co_name    = "netfilter/table",
+static struct nl_cache_ops nftnl_chain_ops = {
+  .co_name    = "netfilter/chain",
   .co_hdrsize    = sizeof(struct nfgenmsg),
   .co_msgtypes    = {
-    {NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_NEWTABLE, NL_ACT_NEW, "new"},
-    {NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_DELTABLE, NL_ACT_DEL, "del"},
-    {NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_GETTABLE, NL_ACT_GET, "get"},
+    {NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_NEWCHAIN, NL_ACT_NEW, "new"},
+    {NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_DELCHAIN, NL_ACT_DEL, "del"},
+    {NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_GETCHAIN, NL_ACT_GET, "get"},
     END_OF_MSGTYPES_LIST,
   },
   .co_protocol    = NETLINK_NETFILTER,
-  .co_request_update      = table_request_update,
-  .co_msg_parser          = table_msg_parser,
-  .co_obj_ops    = &table_obj_ops,
+  .co_request_update      = chain_request_update,
+  .co_msg_parser          = chain_msg_parser,
+  .co_obj_ops    = &chain_obj_ops,
 };
 
-static void __init
-
-table_init(void)
+static void __init chain_init(void)
 {
-  nl_cache_mngt_register(&nftnl_table_ops);
+  nl_cache_mngt_register(&nftnl_chain_ops);
 }
 
-static void __exit
-
-table_exit(void)
+static void __exit chain_exit(void)
 {
-  nl_cache_mngt_unregister(&nftnl_table_ops);
+  nl_cache_mngt_unregister(&nftnl_chain_ops);
 }
 
 /** @} */

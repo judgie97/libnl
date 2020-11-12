@@ -327,6 +327,11 @@ global:
 	nftnl_table_set_handle;
 	nftnl_table_get_family;
 	nftnl_table_set_family;
+	nftnl_chain_alloc;
+	nftnl_chain_put;
+	nftnl_chain_alloc_cache;
+	nftnl_chain_get;
+	nftnl_chain_flags2str;
 local:
 	*;
 };

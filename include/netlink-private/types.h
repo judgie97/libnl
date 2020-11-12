@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: LGPL-2.1-only */
+/* SPDX-License-Identifier: LGPL-2.1-only */
 /*
  * Copyright (c) 2003-2013 Thomas Graf <tgraf@suug.ch>
  * Copyright (c) 2013 Sassano Systems LLC <joe@sassanosystems.com>
@@ -296,21 +297,6 @@ struct rtnl_addr
 	char a_label[IFNAMSIZ];
 	uint32_t a_flag_mask;
 	struct rtnl_link *a_link;
-};
-
-#define NFTTABNAMSIZ 32
-
-struct nftnl_table
-{
-	NLHDR_COMMON
-
-	uint8_t		a_family;
-	uint32_t	a_flags;
-	uint32_t	a_use;
-	uint64_t	a_handle;
-	char a_label[NFTTABNAMSIZ];
-
-	uint32_t a_flag_mask;
 };
 
 struct rtnl_nh_encap
@@ -1345,6 +1331,36 @@ struct rtnl_vlan
 	uint16_t       v_proto;
 	uint8_t        v_prio;
 	uint32_t       v_flags;
+};
+
+#define NFTTABNAMSIZ 32
+
+struct nftnl_table
+{
+  NLHDR_COMMON
+
+    uint8_t		a_family;
+  uint32_t	a_flags;
+  uint32_t	a_use;
+  uint64_t	a_handle;
+  char a_label[NFTTABNAMSIZ];
+};
+
+#define NFTCHANAMSIZ 256
+#define NFTCHATYPSIZ 32
+
+struct nftnl_chain
+{
+  NLHDR_COMMON
+  //TODO ADD THE PARENT TABLE SOMEHOW
+  uint64_t a_handle;
+  char a_name[NFTCHANAMSIZ];
+  //TODO STORE THE HOOK SOMEHOW
+  uint32_t a_policy;
+  uint32_t a_use;
+  char a_type[NFTCHATYPSIZ];
+  //TODO STORE THE CHAIN COUNTERS SOMEHOW
+  uint32_t a_flags;
 };
 
 #endif
