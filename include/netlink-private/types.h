@@ -1346,13 +1346,20 @@ struct nftnl_table
   char a_label[NFTTABNAMSIZ];
 };
 
+enum nftnl_chain_type {
+  UNSPECIFIED,
+  FILTER,
+  NAT,
+  TYPE
+};
+
 #define NFTCHANAMSIZ 256
 #define NFTCHATYPSIZ 32
 
 struct nftnl_chain
 {
   NLHDR_COMMON
-  //TODO ADD THE PARENT TABLE SOMEHOW
+  struct nftnl* a_table;
   uint64_t a_handle;
   char a_name[NFTCHANAMSIZ];
   //TODO STORE THE HOOK SOMEHOW

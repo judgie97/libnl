@@ -20,6 +20,19 @@ void nftnl_chain_put(struct nftnl_chain* chain);
 int nftnl_chain_alloc_cache(struct nl_sock* sk, struct nl_cache** result);
 struct nftnl_chain* nftnl_chain_get(struct nl_cache* cache, char* name);
 char* nftnl_chain_flags2str(int flags, char* buf, size_t size);
+//ATTRS
+void nftnl_chain_set_table(struct nftnl_chain *chain, struct nftnl_table* table);
+struct nftnl_table *nftnl_chain_get_table(struct nftnl_chain *chain);
+int nftnl_chain_set_handle(struct nftnl_chain* chain, uint64_t handle);
+uint64_t nftnl_chain_get_handle(struct nftnl_chain* chain);
+int nftnl_chain_set_name(struct nftnl_chain* chain, const char* name);
+char* nftnl_chain_get_name(struct nftnl_chain* chain);
+int nftnl_chain_set_policy(struct nftnl_chain* chain, uint32_t policy);
+uint32_t nftnl_chain_get_policy(struct nftnl_chain* chain);
+int nftnl_chain_set_use(struct nftnl_chain* chain, uint32_t use);
+uint32_t nftnl_chain_get_use(struct nftnl_chain* chain);
+
+
 
 #ifdef __cplusplus
 }

@@ -105,6 +105,7 @@
 #include <netlink-private/netlink.h>
 #include <netlink/netlink.h>
 #include <netlink/netfilter/nft_chain.h>
+#include <netlink/netfilter/table.h>
 #include <netlink/utils.h>
 #include <linux/netfilter/nf_tables.h>
 
@@ -180,6 +181,7 @@ static int chain_msg_parser(struct nl_cache_ops* ops, struct sockaddr_nl* who,
   struct nfgenmsg* hdr;
   struct nlattr* tb[__NFTA_CHAIN_MAX + 1];
   int err;
+  struct nl_cache* table_cache;
 
   chain = nftnl_chain_alloc();
   if(!chain)
@@ -193,7 +195,19 @@ static int chain_msg_parser(struct nl_cache_ops* ops, struct sockaddr_nl* who,
 
   if(tb[NFTA_CHAIN_TABLE])
   {
-    //TODO GET THAT TABLE AND SAVE IT IN THE THINGY
+    char buffer[NFTTABNAMSIZ];
+    nla_strlcpy(buffer, tb[NFTA_CHAIN_TABLE], NFTTABNAMSIZ);
+
+    if ((table_cache = __nl_cache_mngt_require("netfilter/table"))) {
+      struct nftnl_table* table;
+
+      if ((table = nftnl_table_get(table_cache, buffer))) {
+        chain->a_table = table;
+        chain->ce_mask |= NFTCHA_ATTR_TABLE;
+
+        nftnl_table_put(table);
+      }
+    }
   }
 
   if(tb[NFTA_CHAIN_HANDLE])
@@ -289,7 +303,6 @@ static void chain_dump_stats(struct nl_object* obj, struct nl_dump_params* p)
 static uint32_t chain_id_attrs_get(struct nl_object* obj)
 {
   return NFTCHA_ATTR_HANDLE | NFTCHA_ATTR_TABLE | NFTCHA_ATTR_NAME;
-
 }
 
 static uint64_t chain_compare(struct nl_object* _a, struct nl_object* _b,
@@ -653,8 +666,98 @@ err_freestart:
  * @{
  */
 
-//TODO ATTRIBUTES GETTERS SETTERS
+void nftnl_chain_set_table(struct nftnl_chain *chain, struct nftnl_table* table)
+{
+  nftnl_chain_put(chain->a_table);
 
+  if (!table)
+    return;
+
+  nl_object_get(OBJ_CAST(table));
+  chain->a_table = table;
+  chain->ce_mask |= NFTCHA_ATTR_TABLE;
+}
+
+struct nftnl_table *nftnl_chain_get_table(struct nftnl_chain *chain)
+{
+  if (chain->a_table) {
+    nl_object_get(OBJ_CAST(chain->a_table));
+    return chain->a_table;
+  }
+  return NULL;
+}
+
+int nftnl_chain_set_handle(struct nftnl_chain* chain, uint64_t handle)
+{
+  chain->a_handle = handle;
+  chain->ce_mask |= NFTCHA_ATTR_HANDLE;
+
+  return 0;
+}
+
+uint64_t nftnl_chain_get_handle(struct nftnl_chain* chain)
+{
+  if(chain->ce_mask & NFTCHA_ATTR_HANDLE)
+    return chain->a_handle;
+  else
+    return NULL;
+}
+
+int nftnl_chain_set_name(struct nftnl_chain* chain, const char* name)
+{
+  if(strlen(name) > sizeof(chain->a_name) - 1)
+    return -NLE_RANGE;
+
+  strcpy(chain->a_name, name);
+  chain->ce_mask |= NFTCHA_ATTR_NAME;
+
+  return 0;
+}
+
+char* nftnl_chain_get_name(struct nftnl_chain* chain)
+{
+  if(chain->ce_mask & NFTCHA_ATTR_NAME)
+    return chain->a_name;
+  else
+    return NULL;
+}
+
+//TODO GET HOOK ATTRS
+
+int nftnl_chain_set_policy(struct nftnl_chain* chain, uint32_t policy)
+{
+  chain->a_policy = policy;
+  chain->ce_mask |= NFTCHA_ATTR_POLICY;
+
+  return 0;
+}
+
+uint32_t nftnl_chain_get_policy(struct nftnl_chain* chain)
+{
+  if(chain->ce_mask & NFTCHA_ATTR_POLICY)
+    return chain->a_policy;
+  else
+    return NULL;
+}
+
+int nftnl_chain_set_use(struct nftnl_chain* chain, uint32_t use)
+{
+  chain->a_use = use;
+  chain->ce_mask |= NFTCHA_ATTR_USE;
+
+  return 0;
+}
+
+uint32_t nftnl_chain_get_use(struct nftnl_chain* chain)
+{
+  if(chain->ce_mask & NFTCHA_ATTR_USE)
+    return chain->a_use;
+  else
+    return NULL;
+}
+
+//TODO CHAIN TYPE
+//MIGHT ACTUALLY BE A GOOD IDEA TO STORE IT AS AN ENUM NOT A STRING
 
 /** @} */
 
