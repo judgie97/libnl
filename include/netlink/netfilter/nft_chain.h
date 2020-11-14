@@ -7,6 +7,7 @@
 #define NETLINK_CHAIN_H_
 
 #include <netlink/netlink.h>
+#include <netlink/netfilter/nft_table.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,7 +32,6 @@ int nftnl_chain_set_policy(struct nftnl_chain* chain, uint32_t policy);
 uint32_t nftnl_chain_get_policy(struct nftnl_chain* chain);
 int nftnl_chain_set_use(struct nftnl_chain* chain, uint32_t use);
 uint32_t nftnl_chain_get_use(struct nftnl_chain* chain);
-
 
 
 #ifdef __cplusplus

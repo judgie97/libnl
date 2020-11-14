@@ -105,11 +105,12 @@
 #include <netlink-private/netlink.h>
 #include <netlink/netlink.h>
 #include <netlink/netfilter/nft_chain.h>
-#include <netlink/netfilter/table.h>
+#include <netlink/netfilter/nft_table.h>
 #include <netlink/utils.h>
 #include <linux/netfilter/nf_tables.h>
 
 /** @cond SKIP */
+//CHAIN DIRECT ATTRIBUTES
 #define NFTCHA_ATTR_TABLE  0x0001
 #define NFTCHA_ATTR_HANDLE  0x0002
 #define NFTCHA_ATTR_NAME   0x0004
@@ -119,6 +120,10 @@
 #define NFTCHA_ATTR_TYPE  0x0040
 #define NFTCHA_ATTR_COUNTERS  0x0080
 #define NFTCHA_ATTR_FLAGS  0x0100
+//CHAIN HOOK ATTRIBUTES
+#define NFTCHA_HOOK_ATTR_HOOKNUM 0x0200
+#define NFTCHA_HOOK_ATTR_PRIORITY 0x0400
+#define NFTCHA_HOOK_ATTR_DEV 0x0800
 
 static struct nl_cache_ops nftnl_chain_ops;
 static struct nl_object_ops chain_obj_ops;
@@ -130,7 +135,7 @@ static void chain_constructor(struct nl_object* obj)
   struct nftnl_chain* chain = nl_object_priv(obj);
 
   chain->a_name[0] = 0;
-  chain->a_type[0] = 0;
+  chain->a_type = UNSPECIFIED;
   chain->a_flags = 0;
 }
 
@@ -150,12 +155,18 @@ static int chain_clone(struct nl_object* _dst, struct nl_object* _src)
   struct nftnl_chain* src = nl_object_priv(_src);
 
   //TODO ADD MISSNG ATTRS HERE
+  dst->a_table = 0;
+  if(src->a_table)
+  {
+    nl_object_get((struct nl_object*) src->a_table);
+    dst->a_table = src->a_table;
+  }
   dst->a_handle = src->a_handle;
   dst->a_policy = src->a_policy;
   dst->a_use = src->a_use;
   dst->a_flags = src->a_flags;
   strncpy(dst->a_name, src->a_name, NFTCHANAMSIZ);
-  strncpy(dst->a_type, src->a_type, NFTCHATYPSIZ);
+  dst->a_type = src->a_type;
 
   return 0;
 }
@@ -170,6 +181,13 @@ static struct nla_policy chain_policy[NFTA_CHAIN_MAX + 1] = {
   [NFTA_CHAIN_TYPE]  = {.type = NLA_NUL_STRING},
   [NFTA_CHAIN_COUNTERS]  = {.type = NLA_NESTED},
   [NFTA_CHAIN_FLAGS]  = {.type = NLA_U32},
+};
+
+static struct nla_policy hook_info_policy[NFTA_HOOK_MAX + 1] = {
+  [NFTA_HOOK_HOOKNUM] = {.type = NLA_U32},
+  [NFTA_HOOK_PRIORITY] = {.type = NLA_U32},
+  [NFTA_HOOK_DEV] = {.type = NLA_STRING},
+  [NFTA_HOOK_DEVS] = {.type = NLA_NESTED},
 };
 
 uint64_t swap_order(uint64_t original); //TODO WORK OUT HOW TO ACTUALLY INCLUDE THIS
@@ -224,7 +242,29 @@ static int chain_msg_parser(struct nl_cache_ops* ops, struct sockaddr_nl* who,
 
   if(tb[NFTA_CHAIN_HOOK])
   {
-    //TODO NESTED PARSING!
+    struct nlattr* hi[NFTA_HOOK_MAX + 1];
+    err = nla_parse_nested(hi, NFTA_HOOK_MAX, tb[NFTA_CHAIN_HOOK], hook_info_policy);
+
+    if(err < 0)
+      return err;
+
+    if(hi[NFTA_HOOK_HOOKNUM])
+    {
+      chain->a_hook.a_hooknum = *(uint32_t*) nla_data(hi[NFTA_HOOK_HOOKNUM]);
+      chain->ce_mask |= NFTCHA_HOOK_ATTR_HOOKNUM;
+    }
+
+    if(hi[NFTA_HOOK_PRIORITY])
+    {
+      chain->a_hook.a_priority = *(uint32_t*) nla_data(hi[NFTA_HOOK_PRIORITY]);
+      chain->ce_mask |= NFTCHA_HOOK_ATTR_PRIORITY;
+    }
+
+    if(tb[NFTA_HOOK_DEV])
+    {
+      nla_strlcpy(chain->a_hook.a_device, hi[NFTA_HOOK_DEV], IFNAMSIZ);
+      chain->ce_mask |= NFTCHA_HOOK_ATTR_DEV;
+    }
   }
 
   if(tb[NFTA_CHAIN_POLICY])
@@ -239,9 +279,20 @@ static int chain_msg_parser(struct nl_cache_ops* ops, struct sockaddr_nl* who,
     chain->ce_mask |= NFTCHA_ATTR_USE;
   }
 
+  chain->a_type = UNSPECIFIED;
   if(tb[NFTA_CHAIN_TYPE])
   {
-    nla_strlcpy(chain->a_type, tb[NFTA_CHAIN_TYPE], NFTCHATYPSIZ);
+    char buffer[NFTCHATYPSIZ];
+    nla_strlcpy(buffer, tb[NFTA_CHAIN_TYPE], NFTCHATYPSIZ);
+
+#define COMPARE(X,Y) if(!strncmp(buffer, #X, NFTCHATYPSIZ)){chain->a_type = Y;}
+    COMPARE(filter,FILTER)
+    COMPARE(nat,NAT)
+    COMPARE(route,ROUTE)
+#undef COMPARE
+
+    if(chain->a_type == UNSPECIFIED)
+      goto errout;
     chain->ce_mask |= NFTCHA_ATTR_TYPE;
   }
 
@@ -319,7 +370,7 @@ static uint64_t chain_compare(struct nl_object* _a, struct nl_object* _b,
   diff |= NFTCHA_DIFF(NAME, strncmp(a->a_name, b->a_name, NFTCHANAMSIZ) != 0);
   diff |= NFTCHA_DIFF(POLICY, a->a_policy != b->a_policy);
   diff |= NFTCHA_DIFF(USE, a->a_use != b->a_use);
-  diff |= NFTCHA_DIFF(TYPE, strncmp(a->a_type, b->a_type, NFTCHATYPSIZ) != 0);
+  diff |= NFTCHA_DIFF(TYPE, a->a_type == b->a_type);
   diff |= NFTCHA_DIFF(FLAGS, a->a_flags != b->a_flags);
 
 #undef NFTCHA_DIFF
@@ -756,9 +807,19 @@ uint32_t nftnl_chain_get_use(struct nftnl_chain* chain)
     return NULL;
 }
 
-//TODO CHAIN TYPE
-//MIGHT ACTUALLY BE A GOOD IDEA TO STORE IT AS AN ENUM NOT A STRING
+/*void nftnl_chain_set_type(struct nftnl_chain* chain, enum nftnl_chain_type type)
+{
+  chain->a_type = type;
+  chain->ce_mask |= NFTCHA_ATTR_TYPE;
+}
 
+enum ntfnl_chain_type nftnl_chain_get_type(struct nftnl_chain* chain)
+{
+  if(chain->ce_mask & NFTCHA_ATTR_TYPE)
+    return chain->a_type;
+  return UNSPECIFIED;
+}
+*/
 /** @} */
 
 /**

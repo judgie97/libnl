@@ -15,6 +15,7 @@
 #include <netlink/route/route.h>
 #include <netlink/idiag/idiagnl.h>
 #include <netlink/netfilter/ct.h>
+#include <netlink/netfilter/nft_chain.h>
 #include <netlink-private/object-api.h>
 #include <netlink-private/route/tc-api.h>
 #include <netlink-private/route/link/sriov.h>
@@ -1350,7 +1351,14 @@ enum nftnl_chain_type {
   UNSPECIFIED,
   FILTER,
   NAT,
-  TYPE
+  ROUTE
+};
+
+struct nftnl_hook
+{
+  uint32_t a_hooknum;
+  uint32_t a_priority;
+  char a_device[IFNAMSIZ];
 };
 
 #define NFTCHANAMSIZ 256
@@ -1362,10 +1370,10 @@ struct nftnl_chain
   struct nftnl* a_table;
   uint64_t a_handle;
   char a_name[NFTCHANAMSIZ];
-  //TODO STORE THE HOOK SOMEHOW
+  struct nftnl_hook a_hook;
   uint32_t a_policy;
   uint32_t a_use;
-  char a_type[NFTCHATYPSIZ];
+  enum nftnl_chain_type a_type;
   //TODO STORE THE CHAIN COUNTERS SOMEHOW
   uint32_t a_flags;
 };

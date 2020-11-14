@@ -358,6 +358,7 @@ struct nftnl_table* nftnl_table_get(struct nl_cache* cache, char* name)
   nl_list_for_each_entry(a, &cache->c_items, ce_list)
   {
     if(strncmp(a->a_label, name, NFTTABNAMSIZ) == 0)
+      nl_object_get((struct nl_object*) a);
       return a;
   }
 
