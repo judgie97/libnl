@@ -332,6 +332,22 @@ global:
 	nftnl_chain_alloc_cache;
 	nftnl_chain_get;
 	nftnl_chain_flags2str;
+	nftnl_chain_set_table;
+	nftnl_chain_get_table;
+	nftnl_chain_set_handle;
+	nftnl_chain_get_handle;
+	nftnl_chain_set_name;
+	nftnl_chain_get_name;
+	nftnl_chain_set_policy;
+	nftnl_chain_get_policy;
+	nftnl_chain_set_use;
+	nftnl_chain_get_use;
+	nftnl_chain_hook_set_hooknum;
+	nftnl_chain_hook_get_hooknum;
+	nftnl_chain_hook_set_priority;
+	nftnl_chain_hook_get_priority;
+	nftnl_chain_hook_set_dev;
+	nftnl_chain_hook_get_dev;
 local:
 	*;
 };

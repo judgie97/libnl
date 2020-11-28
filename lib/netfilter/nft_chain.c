@@ -114,7 +114,6 @@
 #define NFTCHA_ATTR_TABLE  0x0001
 #define NFTCHA_ATTR_HANDLE  0x0002
 #define NFTCHA_ATTR_NAME   0x0004
-#define NFTCHA_ATTR_HOOK    0x0008
 #define NFTCHA_ATTR_POLICY  0x0010
 #define NFTCHA_ATTR_USE  0x0020
 #define NFTCHA_ATTR_TYPE  0x0040
@@ -260,7 +259,7 @@ static int chain_msg_parser(struct nl_cache_ops* ops, struct sockaddr_nl* who,
       chain->ce_mask |= NFTCHA_HOOK_ATTR_PRIORITY;
     }
 
-    if(tb[NFTA_HOOK_DEV])
+    if(hi[NFTA_HOOK_DEV])
     {
       nla_strlcpy(chain->a_hook.a_device, hi[NFTA_HOOK_DEV], IFNAMSIZ);
       chain->ce_mask |= NFTCHA_HOOK_ATTR_DEV;
@@ -773,8 +772,6 @@ char* nftnl_chain_get_name(struct nftnl_chain* chain)
     return NULL;
 }
 
-//TODO GET HOOK ATTRS
-
 int nftnl_chain_set_policy(struct nftnl_chain* chain, uint32_t policy)
 {
   chain->a_policy = policy;
@@ -820,6 +817,60 @@ enum ntfnl_chain_type nftnl_chain_get_type(struct nftnl_chain* chain)
   return UNSPECIFIED;
 }
 */
+
+int nftnl_chain_hook_set_hooknum(struct nftnl_chain* chain, uint32_t hooknum)
+{
+  chain->a_hook.a_hooknum = hooknum;
+  chain->ce_mask |= NFTCHA_HOOK_ATTR_HOOKNUM;
+
+  return 0;
+}
+
+uint32_t nftnl_chain_hook_get_hooknum(struct nftnl_chain* chain)
+{
+  if(chain->ce_mask & NFTCHA_HOOK_ATTR_HOOKNUM)
+    return chain->a_hook.a_hooknum;
+  else
+    return NULL;
+}
+
+int nftnl_chain_hook_set_priority(struct nftnl_chain* chain, uint32_t priority)
+{
+  chain->a_hook.a_priority = priority;
+  chain->ce_mask |= NFTCHA_HOOK_ATTR_PRIORITY;
+
+  return 0;
+}
+
+uint32_t nftnl_chain_hook_get_priority(struct nftnl_chain* chain)
+{
+  if(chain->ce_mask & NFTCHA_HOOK_ATTR_PRIORITY)
+    return chain->a_hook.a_priority;
+  else
+    return NULL;
+}
+
+int nftnl_chain_hook_set_dev(struct nftnl_chain* chain, const char* dev)
+{
+  if(strlen(dev) > sizeof(chain->a_hook.a_device) - 1)
+    return -NLE_RANGE;
+
+  strcpy(chain->a_hook.a_device, dev);
+  chain->ce_mask |= NFTCHA_HOOK_ATTR_DEV;
+
+  return 0;
+}
+
+char* nftnl_chain_hook_get_dev(struct nftnl_chain* chain)
+{
+  if(chain->ce_mask & NFTCHA_HOOK_ATTR_DEV)
+    return chain->a_hook.a_device;
+  else
+    return NULL;
+}
+
+#define NFTCHA_HOOK_ATTR_DEV 0x0800
+
 /** @} */
 
 /**

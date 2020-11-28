@@ -32,6 +32,13 @@ int nftnl_chain_set_policy(struct nftnl_chain* chain, uint32_t policy);
 uint32_t nftnl_chain_get_policy(struct nftnl_chain* chain);
 int nftnl_chain_set_use(struct nftnl_chain* chain, uint32_t use);
 uint32_t nftnl_chain_get_use(struct nftnl_chain* chain);
+//HOOK ATTRS
+int nftnl_chain_hook_set_hooknum(struct nftnl_chain* chain, uint32_t hooknum);
+uint32_t nftnl_chain_hook_get_hooknum(struct nftnl_chain* chain);
+int nftnl_chain_hook_set_priority(struct nftnl_chain* chain, uint32_t priority);
+uint32_t nftnl_chain_hook_get_priority(struct nftnl_chain* chain);
+int nftnl_chain_hook_set_dev(struct nftnl_chain* chain, const char* dev);
+char* nftnl_chain_hook_get_dev(struct nftnl_chain* chain);
 
 
 #ifdef __cplusplus
