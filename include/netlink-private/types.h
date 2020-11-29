@@ -1347,13 +1347,6 @@ struct nftnl_table
   char a_label[NFTTABNAMSIZ];
 };
 
-enum nftnl_chain_type {
-  UNSPECIFIED,
-  FILTER,
-  NAT,
-  ROUTE
-};
-
 struct nftnl_hook
 {
   uint32_t a_hooknum;

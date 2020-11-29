@@ -342,12 +342,15 @@ global:
 	nftnl_chain_get_policy;
 	nftnl_chain_set_use;
 	nftnl_chain_get_use;
+	nftnl_chain_set_type;
+	nftnl_chain_get_type;
 	nftnl_chain_hook_set_hooknum;
 	nftnl_chain_hook_get_hooknum;
 	nftnl_chain_hook_set_priority;
 	nftnl_chain_hook_get_priority;
 	nftnl_chain_hook_set_dev;
 	nftnl_chain_hook_get_dev;
+	nftnl_chain_add;
 local:
 	*;
 };

@@ -516,6 +516,7 @@ lib_libnl_nf_3_la_SOURCES = \
 	lib/netfilter/queue_msg.c \
 	lib/netfilter/queue_msg_obj.c \
 	lib/netfilter/queue_obj.c \
+	lib/netfilter/nft_util.c \
 	lib/netfilter/nft_table.c \
 	lib/netfilter/nft_chain.c \
 	$(NULL)

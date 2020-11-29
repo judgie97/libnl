@@ -123,11 +123,14 @@
 #define NFTCHA_HOOK_ATTR_HOOKNUM 0x0200
 #define NFTCHA_HOOK_ATTR_PRIORITY 0x0400
 #define NFTCHA_HOOK_ATTR_DEV 0x0800
+#define NFTCHA_HOOK_ATTR_ANY NFTCHA_HOOK_ATTR_HOOKNUM | NFTCHA_HOOK_ATTR_PRIORITY | NFTCHA_HOOK_ATTR_DEV
 
 static struct nl_cache_ops nftnl_chain_ops;
 static struct nl_object_ops chain_obj_ops;
 
 /** @endcond */
+
+char chain_types[][8] = {"", "filter", "route", "nat"};
 
 static void chain_constructor(struct nl_object* obj)
 {
@@ -189,7 +192,93 @@ static struct nla_policy hook_info_policy[NFTA_HOOK_MAX + 1] = {
   [NFTA_HOOK_DEVS] = {.type = NLA_NESTED},
 };
 
-uint64_t swap_order(uint64_t original); //TODO WORK OUT HOW TO ACTUALLY INCLUDE THIS
+static int build_chain_msg(struct nftnl_chain* tmpl, int cmd, int flags, struct nl_msg** result)
+{
+  struct nl_msg* msg;
+  struct nfgenmsg cm = {
+    .nfgen_family = nftnl_table_get_family(tmpl->a_table),
+    .version = 0,
+    .res_id = 0
+  };
+
+  msg = nlmsg_alloc_simple(cmd, flags);
+  if(!msg)
+    return -NLE_NOMEM;
+
+  if(nlmsg_append(msg, &cm, sizeof(cm), NLMSG_ALIGNTO) < 0)
+    goto nla_put_failure;
+
+  if(tmpl->ce_mask & NFTCHA_ATTR_NAME)
+    NLA_PUT_STRING(msg, NFTA_CHAIN_NAME, tmpl->a_name);
+
+  if(tmpl->ce_mask & NFTCHA_ATTR_FLAGS)
+    NLA_PUT_U32(msg, NFTA_CHAIN_FLAGS, tmpl->a_flags);
+  else
+    NLA_PUT_U32(msg, NFTA_CHAIN_FLAGS, 0);
+
+  if(tmpl->ce_mask & NFTCHA_ATTR_USE)
+    NLA_PUT_U32(msg, NFTA_CHAIN_USE, tmpl->a_use);
+
+  if(tmpl->ce_mask & NFTCHA_ATTR_TYPE)
+    NLA_PUT_STRING(msg, NFTA_CHAIN_TYPE, chain_types[tmpl->a_type]);
+
+  if(tmpl->ce_mask & NFTCHA_ATTR_HANDLE)
+    NLA_PUT_U64(msg, NFTA_CHAIN_HANDLE, tmpl->a_handle);
+
+  if(tmpl->ce_mask & NFTCHA_ATTR_TABLE)
+    NLA_PUT_STRING(msg, NFTA_CHAIN_TABLE, nftnl_table_get_name(tmpl->a_table));
+
+  if(tmpl->ce_mask & NFTCHA_HOOK_ATTR_ANY)
+  {
+    struct nlattr* start = nla_nest_start(msg, NFTA_CHAIN_HOOK);
+
+    if(tmpl->ce_mask & NFTCHA_HOOK_ATTR_HOOKNUM)
+      NLA_PUT_U32(msg, NFTA_HOOK_HOOKNUM, tmpl->a_hook.a_hooknum);
+
+    if(tmpl->ce_mask & NFTCHA_HOOK_ATTR_PRIORITY)
+      NLA_PUT_U32(msg, NFTA_HOOK_PRIORITY, tmpl->a_hook.a_priority);
+
+    if(tmpl->ce_mask & NFTCHA_HOOK_ATTR_DEV)
+      NLA_PUT_STRING(msg, NFTA_HOOK_DEV, tmpl->a_hook.a_device);
+
+    nla_nest_end(msg, start);
+  }
+
+  *result = msg;
+  return 0;
+
+nla_put_failure:
+  nlmsg_free(msg);
+  return -NLE_MSGSIZE;
+}
+
+int nftnl_chain_build_add_request(struct nftnl_chain* chain, int flags, struct nl_msg** result)
+{
+  uint32_t required = NFTCHA_ATTR_NAME | NFTCHA_ATTR_TABLE | NFTCHA_ATTR_TYPE | NFTCHA_HOOK_ATTR_HOOKNUM | NFTCHA_HOOK_ATTR_PRIORITY;
+
+  if((chain->ce_mask & required) != required)
+    return -NLE_MISSING_ATTR;
+
+  return build_chain_msg(chain, NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_NEWCHAIN, NLM_F_CREATE | flags, result);
+}
+
+int nftnl_chain_add(struct nl_sock* sk, struct nftnl_chain* chain, int flags)
+{
+  struct nl_msg* msg;
+  int err;
+
+  if((err = nftnl_chain_build_add_request(chain, flags, &msg)) < 0)
+    return err;
+
+  err = nf_batch_send(sk, msg);
+  nlmsg_free(msg);
+  if(err < 0)
+    return err;
+
+  err = wait_for_ack(sk);
+  sk->s_seq_expect++;
+  return err;
+}
 
 static int chain_msg_parser(struct nl_cache_ops* ops, struct sockaddr_nl* who,
                             struct nlmsghdr* nlh, struct nl_parser_param* pp)
@@ -215,10 +304,12 @@ static int chain_msg_parser(struct nl_cache_ops* ops, struct sockaddr_nl* who,
     char buffer[NFTTABNAMSIZ];
     nla_strlcpy(buffer, tb[NFTA_CHAIN_TABLE], NFTTABNAMSIZ);
 
-    if ((table_cache = __nl_cache_mngt_require("netfilter/table"))) {
+    if((table_cache = __nl_cache_mngt_require("netfilter/table")))
+    {
       struct nftnl_table* table;
 
-      if ((table = nftnl_table_get(table_cache, buffer))) {
+      if((table = nftnl_table_get(table_cache, buffer)))
+      {
         chain->a_table = table;
         chain->ce_mask |= NFTCHA_ATTR_TABLE;
 
@@ -284,10 +375,10 @@ static int chain_msg_parser(struct nl_cache_ops* ops, struct sockaddr_nl* who,
     char buffer[NFTCHATYPSIZ];
     nla_strlcpy(buffer, tb[NFTA_CHAIN_TYPE], NFTCHATYPSIZ);
 
-#define COMPARE(X,Y) if(!strncmp(buffer, #X, NFTCHATYPSIZ)){chain->a_type = Y;}
-    COMPARE(filter,FILTER)
-    COMPARE(nat,NAT)
-    COMPARE(route,ROUTE)
+#define COMPARE(X, Y) if(!strncmp(buffer, #X, NFTCHATYPSIZ)){chain->a_type = Y;}
+    COMPARE(filter, FILTER)
+    COMPARE(nat, NAT)
+    COMPARE(route, ROUTE)
 #undef COMPARE
 
     if(chain->a_type == UNSPECIFIED)
@@ -386,6 +477,7 @@ static const struct trans_tbl chain_attrs[] = {
   __ADD(NFTCHA_ATTR_TYPE, type),
   __ADD(NFTCHA_ATTR_COUNTERS, counters),
   __ADD(NFTCHA_ATTR_FLAGS, flags)
+  //TODO Add hooks here
 };
 
 static char* chain_attrs2str(int attrs, char* buf, size_t len)
@@ -716,11 +808,11 @@ err_freestart:
  * @{
  */
 
-void nftnl_chain_set_table(struct nftnl_chain *chain, struct nftnl_table* table)
+void nftnl_chain_set_table(struct nftnl_chain* chain, struct nftnl_table* table)
 {
   nftnl_chain_put(chain->a_table);
 
-  if (!table)
+  if(!table)
     return;
 
   nl_object_get(OBJ_CAST(table));
@@ -728,9 +820,10 @@ void nftnl_chain_set_table(struct nftnl_chain *chain, struct nftnl_table* table)
   chain->ce_mask |= NFTCHA_ATTR_TABLE;
 }
 
-struct nftnl_table *nftnl_chain_get_table(struct nftnl_chain *chain)
+struct nftnl_table* nftnl_chain_get_table(struct nftnl_chain* chain)
 {
-  if (chain->a_table) {
+  if(chain->a_table)
+  {
     nl_object_get(OBJ_CAST(chain->a_table));
     return chain->a_table;
   }
@@ -804,19 +897,19 @@ uint32_t nftnl_chain_get_use(struct nftnl_chain* chain)
     return NULL;
 }
 
-/*void nftnl_chain_set_type(struct nftnl_chain* chain, enum nftnl_chain_type type)
+void nftnl_chain_set_type(struct nftnl_chain* chain, enum nftnl_chain_type type)
 {
   chain->a_type = type;
   chain->ce_mask |= NFTCHA_ATTR_TYPE;
 }
 
-enum ntfnl_chain_type nftnl_chain_get_type(struct nftnl_chain* chain)
+enum nftnl_chain_type nftnl_chain_get_type(struct nftnl_chain* chain)
 {
   if(chain->ce_mask & NFTCHA_ATTR_TYPE)
     return chain->a_type;
   return UNSPECIFIED;
 }
-*/
+
 
 int nftnl_chain_hook_set_hooknum(struct nftnl_chain* chain, uint32_t hooknum)
 {
@@ -920,12 +1013,16 @@ static struct nl_cache_ops nftnl_chain_ops = {
   .co_obj_ops    = &chain_obj_ops,
 };
 
-static void __init chain_init(void)
+static void __init
+
+chain_init(void)
 {
   nl_cache_mngt_register(&nftnl_chain_ops);
 }
 
-static void __exit chain_exit(void)
+static void __exit
+
+chain_exit(void)
 {
   nl_cache_mngt_unregister(&nftnl_chain_ops);
 }
