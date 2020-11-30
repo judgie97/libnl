@@ -163,12 +163,40 @@ int nftnl_chain_build_add_request(struct nftnl_chain* chain, int flags, struct n
   return build_chain_msg(chain, NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_NEWCHAIN, NLM_F_CREATE | flags, result);
 }
 
+int nftnl_chain_build_del_request(struct nftnl_chain* chain, int flags, struct nl_msg** result)
+{
+  uint32_t required = NFTCHA_ATTR_NAME | NFTCHA_ATTR_TABLE;
+
+  if((chain->ce_mask & required) != required)
+    return -NLE_MISSING_ATTR;
+
+  return build_chain_msg(chain, NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_DELCHAIN, NLM_F_CREATE | flags, result);
+}
+
 int nftnl_chain_add(struct nl_sock* sk, struct nftnl_chain* chain, int flags)
 {
   struct nl_msg* msg;
   int err;
 
   if((err = nftnl_chain_build_add_request(chain, flags, &msg)) < 0)
+    return err;
+
+  err = nf_batch_send(sk, msg);
+  nlmsg_free(msg);
+  if(err < 0)
+    return err;
+
+  err = wait_for_ack(sk);
+  sk->s_seq_expect++;
+  return err;
+}
+
+int nftnl_chain_del(struct nl_sock* sk, struct nftnl_chain* chain, int flags)
+{
+  struct nl_msg* msg;
+  int err;
+
+  if((err = nftnl_chain_build_del_request(chain, flags, &msg)) < 0)
     return err;
 
   err = nf_batch_send(sk, msg);

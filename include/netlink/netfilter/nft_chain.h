@@ -50,6 +50,8 @@ int nftnl_chain_hook_set_dev(struct nftnl_chain* chain, const char* dev);
 char* nftnl_chain_hook_get_dev(struct nftnl_chain* chain);
 //ADD REMOVE
 int nftnl_chain_add(struct nl_sock* sk, struct nftnl_chain* chain, int flags);
+int nftnl_chain_del(struct nl_sock* sk, struct nftnl_chain* chain, int flags);
+
 
 
 #ifdef __cplusplus
