@@ -5,111 +5,12 @@
  * Copyright (c) 2003-2006 Mediatrix Telecom, inc. <ericb@mediatrix.com>
  */
 
-
-//TODO This should be a code example of adding a new table using this shit
-/**
- * @ingroup rtnl
- * @defgroup rtaddr Addresses
- * @brief
- *
- * @note The maximum size of an address label is IFNAMSIZ.
- *
- * @note The address may not contain a prefix length if the peer address
- *       has been specified already.
- *
- * @par 1) Address Addition
- * @code
- * // Allocate an empty address object to be filled out with the attributes
- * // of the new address.
- * struct rtnl_addr *addr = rtnl_addr_alloc();
- *
- * // Fill out the mandatory attributes of the new address. Setting the
- * // local address will automatically set the address family and the
- * // prefix length to the correct values.
- * rtnl_addr_set_ifindex(addr, ifindex);
- * rtnl_addr_set_local(addr, local_addr);
- *
- * // The label of the address can be specified, currently only supported
- * // by IPv4 and DECnet.
- * rtnl_addr_set_label(addr, "mylabel");
- *
- * // The peer address can be specified if necessary, in either case a peer
- * // address will be sent to the kernel in order to fullfil the interface
- * // requirements. If none is set, it will equal the local address.
- * // Note: Real peer addresses are only supported by IPv4 for now.
- * rtnl_addr_set_peer(addr, peer_addr);
- *
- * // In case you want to have the address have a scope other than global
- * // it may be overwritten using rtnl_addr_set_scope(). The scope currently
- * // cannot be set for IPv6 addresses.
- * rtnl_addr_set_scope(addr, rtnl_str2scope("site"));
- *
- * // Broadcast address may be specified using the relevant
- * // functions, the address family will be verified if one of the other
- * // addresses has been set already. Currently only works for IPv4.
- * rtnl_addr_set_broadcast(addr, broadcast_addr);
- *
- * // Build the netlink message and send it to the kernel, the operation will
- * // block until the operation has been completed. Alternatively the required
- * // netlink message can be built using rtnl_addr_build_add_request() to be
- * // sent out using nl_send_auto_complete().
- * rtnl_addr_add(sk, addr, 0);
- *
- * // Free the memory
- * rtnl_addr_put(addr);
- * @endcode
- *
- * @par 2) Address Deletion
- * @code
- * // Allocate an empty address object to be filled out with the attributes
- * // matching the address to be deleted. Alternatively a fully equipped
- * // address object out of a cache can be used instead.
- * struct rtnl_addr *addr = rtnl_addr_alloc();
- *
- * // The only mandatory parameter besides the address family is the interface
- * // index the address is on, i.e. leaving out all other parameters will
- * // result in all addresses of the specified address family interface tuple
- * // to be deleted.
- * rtnl_addr_set_ifindex(addr, ifindex);
- *
- * // Specyfing the address family manually is only required if neither the
- * // local nor peer address have been specified.
- * rtnl_addr_set_family(addr, AF_INET);
- *
- * // Specyfing the local address is optional but the best choice to delete
- * // specific addresses.
- * rtnl_addr_set_local(addr, local_addr);
- *
- * // The label of the address can be specified, currently only supported
- * // by IPv4 and DECnet.
- * rtnl_addr_set_label(addr, "mylabel");
- *
- * // The peer address can be specified if necessary, in either case a peer
- * // address will be sent to the kernel in order to fullfil the interface
- * // requirements. If none is set, it will equal the local address.
- * // Note: Real peer addresses are only supported by IPv4 for now.
- * rtnl_addr_set_peer(addr, peer_addr);
- *
- * // Build the netlink message and send it to the kernel, the operation will
- * // block until the operation has been completed. Alternatively the required
- * // netlink message can be built using rtnl_addr_build_delete_request()
- * // to be sent out using nl_send_auto_complete().
- * rtnl_addr_delete(sk, addr, 0);
- *
- * // Free the memory
- * rtnl_addr_put(addr);
- * @endcode
- * @{
- */
-
 #include <netlink-private/netlink.h>
 #include <netlink/netlink.h>
 #include <netlink/netfilter/nft_table.h>
 #include <netlink/utils.h>
 #include <linux/netfilter/nf_tables.h>
 
-
-/** @cond SKIP */
 #define NFTTAB_ATTR_NAME  0x0001
 #define NFTTAB_ATTR_HANDLE  0x0002
 #define NFTTAB_ATTR_FLAGS   0x0004
@@ -118,8 +19,6 @@
 
 static struct nl_cache_ops nftnl_table_ops;
 static struct nl_object_ops table_obj_ops;
-
-/** @endcond */
 
 static void table_constructor(struct nl_object* obj)
 {
@@ -296,11 +195,6 @@ static char* table_attrs2str(int attrs, char* buf, size_t len)
                      ARRAY_SIZE(table_attrs));
 }
 
-/**
- * @name Allocation/Freeing
- * @{
- */
-
 struct nftnl_table* nftnl_table_alloc(void)
 {
   return (struct nftnl_table*) nl_object_alloc(&table_obj_ops);
@@ -311,32 +205,11 @@ void nftnl_table_put(struct nftnl_table* table)
   nl_object_put((struct nl_object*) table);
 }
 
-/** @} */
-
-/**
- * @name Cache Management
- * @{
- */
-
 int nftnl_table_alloc_cache(struct nl_sock* sk, struct nl_cache** result)
 {
   return nl_cache_alloc_and_fill(&nftnl_table_ops, sk, result);
 }
 
-/**
- * Search address in cache
- * @arg cache		Address cache
- * @arg ifindex		Interface index of address
- * @arg addr		Local address part
- *
- * Searches address cache previously allocated with rtnl_addr_alloc_cache()
- * for an address with a matching local address.
- *
- * The reference counter is incremented before returning the address, therefore
- * the reference must be given back with rtnl_addr_put() after usage.
- *
- * @return Address object or NULL if no match was found.
- */
 struct nftnl_table* nftnl_table_get(struct nl_cache* cache, char* name)
 {
   struct nftnl_table* a;
@@ -353,8 +226,6 @@ struct nftnl_table* nftnl_table_get(struct nl_cache* cache, char* name)
 
   return NULL;
 }
-
-/** @} */
 
 static int build_table_msg(struct nftnl_table* tmpl, int cmd, int flags, struct nl_msg** result)
 {
@@ -394,33 +265,6 @@ nla_put_failure:
   return -NLE_MSGSIZE;
 }
 
-/**
- * @name Addition
- * @{
- */
-
-/**
- * Build netlink request message to request addition of new address
- * @arg addr		Address object representing the new address.
- * @arg flags		Additional netlink message flags.
- * @arg result		Pointer to store resulting message.
- *
- * Builds a new netlink message requesting the addition of a new
- * address. The netlink message header isn't fully equipped with
- * all relevant fields and must thus be sent out via nl_send_auto_complete()
- * or supplemented as needed.
- *
- * Minimal required attributes:
- *   - interface index (rtnl_addr_set_ifindex())
- *   - local address (rtnl_addr_set_local())
- *
- * The scope will default to universe except for loopback addresses in
- * which case a host scope is used if not specified otherwise.
- *
- * @note Free the memory after usage using nlmsg_free().
- *
- * @return 0 on success or a negative error code.
- */
 int nftnl_table_build_add_request(struct nftnl_table* table, int flags, struct nl_msg** result)
 {
   uint32_t required = NFTTAB_ATTR_NAME | NFTTAB_ATTR_FAMILY;
@@ -431,20 +275,6 @@ int nftnl_table_build_add_request(struct nftnl_table* table, int flags, struct n
   return build_table_msg(table, NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_NEWTABLE, NLM_F_CREATE | flags, result);
 }
 
-/**
- * Request addition of new address
- * @arg sk		Netlink socket.
- * @arg addr		Address object representing the new address.
- * @arg flags		Additional netlink message flags.
- *
- * Builds a netlink message by calling rtnl_addr_build_add_request(),
- * sends the request to the kernel and waits for the next ACK to be
- * received and thus blocks until the request has been fullfilled.
- *
- * @see rtnl_addr_build_add_request()
- *
- * @return 0 on sucess or a negative error if an error occured.
- */
 int nftnl_table_add(struct nl_sock* sk, struct nftnl_table* table, int flags)
 {
   struct nl_msg* msg;
@@ -463,37 +293,6 @@ int nftnl_table_add(struct nl_sock* sk, struct nftnl_table* table, int flags)
   return err;
 }
 
-/** @} */
-
-/**
- * @name Deletion
- * @{
- */
-
-/**
- * Build a netlink request message to request deletion of an address
- * @arg addr		Address object to be deleteted.
- * @arg flags		Additional netlink message flags.
- * @arg result		Pointer to store resulting message.
- *
- * Builds a new netlink message requesting a deletion of an address.
- * The netlink message header isn't fully equipped with all relevant
- * fields and must thus be sent out via nl_send_auto_complete()
- * or supplemented as needed.
- *
- * Minimal required attributes:
- *   - interface index (rtnl_addr_set_ifindex())
- *   - address family (rtnl_addr_set_family())
- *
- * Optional attributes:
- *   - local address (rtnl_addr_set_local())
- *   - label (rtnl_addr_set_label(), IPv4/DECnet only)
- *   - peer address (rtnl_addr_set_peer(), IPv4 only)
- *
- * @note Free the memory after usage using nlmsg_free().
- *
- * @return 0 on success or a negative error code.
- */
 int nftnl_table_build_delete_request(struct nftnl_table* table, int flags, struct nl_msg** result)
 {
   uint32_t required = NFTTAB_ATTR_FAMILY | NFTTAB_ATTR_NAME;
@@ -504,20 +303,6 @@ int nftnl_table_build_delete_request(struct nftnl_table* table, int flags, struc
   return build_table_msg(table, NFNL_SUBSYS_NFTABLES << 8 | NFT_MSG_DELTABLE, flags, result);
 }
 
-/**
- * Request deletion of an address
- * @arg sk		Netlink socket.
- * @arg addr		Address object to be deleted.
- * @arg flags		Additional netlink message flags.
- *
- * Builds a netlink message by calling rtnl_addr_build_delete_request(),
- * sends the request to the kernel and waits for the next ACK to be
- * received and thus blocks until the request has been fullfilled.
- *
- * @see rtnl_addr_build_delete_request();
- *
- * @return 0 on sucess or a negative error if an error occured.
- */
 int nftnl_table_delete(struct nl_sock* sk, struct nftnl_table* table, int flags)
 {
   struct nl_msg* msg;
@@ -535,13 +320,6 @@ int nftnl_table_delete(struct nl_sock* sk, struct nftnl_table* table, int flags)
   sk->s_seq_expect++;
   return err;
 }
-
-/** @} */
-
-/**
- * @name Attributes
- * @{
- */
 
 int nftnl_table_set_name(struct nftnl_table* table, const char* name)
 {
@@ -594,13 +372,6 @@ uint32_t nftnl_table_get_family(struct nftnl_table* table)
     return NULL;
 }
 
-/** @} */
-
-/**
- * @name Flags Translations
- * @{
- */
-
 static const struct trans_tbl table_flags[] = {
 };
 
@@ -614,7 +385,6 @@ int rtnl_addr_str2flags(const char* name)
   return __str2flags(name, table_flags, ARRAY_SIZE(table_flags));
 }
 
-/** @} */
 
 static struct nl_object_ops table_obj_ops = {
   .oo_name    = "netfilter/table",
@@ -661,5 +431,3 @@ table_exit(void)
 {
   nl_cache_mngt_unregister(&nftnl_table_ops);
 }
-
-/** @} */
