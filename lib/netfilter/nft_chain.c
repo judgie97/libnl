@@ -191,7 +191,7 @@ int nftnl_chain_add(struct nl_sock* sk, struct nftnl_chain* chain, int flags)
   return err;
 }
 
-int nftnl_chain_del(struct nl_sock* sk, struct nftnl_chain* chain, int flags)
+int nftnl_chain_delete(struct nl_sock* sk, struct nftnl_chain* chain, int flags)
 {
   struct nl_msg* msg;
   int err;
