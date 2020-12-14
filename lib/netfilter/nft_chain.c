@@ -68,16 +68,16 @@ static int chain_clone(struct nl_object* _dst, struct nl_object* _src)
   dst->a_policy = src->a_policy;
   dst->a_use = src->a_use;
   dst->a_flags = src->a_flags;
-  strncpy(dst->a_name, src->a_name, NFTCHANAMSIZ);
+  strncpy(dst->a_name, src->a_name, NFT_CHAIN_MAXNAMELEN);
   dst->a_type = src->a_type;
 
   return 0;
 }
 
 static struct nla_policy chain_policy[NFTA_CHAIN_MAX + 1] = {
-  [NFTA_CHAIN_TABLE]  = {.type = NLA_STRING, .maxlen = NFTTABNAMSIZ},
+  [NFTA_CHAIN_TABLE]  = {.type = NLA_STRING, .maxlen = NFT_TABLE_MAXNAMELEN},
   [NFTA_CHAIN_HANDLE]  = {.type = NLA_U64},
-  [NFTA_CHAIN_NAME]  = {.type = NLA_STRING, .maxlen = NFTCHANAMSIZ},
+  [NFTA_CHAIN_NAME]  = {.type = NLA_STRING, .maxlen = NFT_CHAIN_MAXNAMELEN},
   [NFTA_CHAIN_HOOK]  = {.type = NLA_NESTED},
   [NFTA_CHAIN_POLICY]  = {.type = NLA_U32},
   [NFTA_CHAIN_USE]  = {.type = NLA_U32},
@@ -230,10 +230,9 @@ static int chain_msg_parser(struct nl_cache_ops* ops, struct sockaddr_nl* who,
 
   if(tb[NFTA_CHAIN_TABLE])
   {
-    char buffer[NFTTABNAMSIZ];
-    nla_strlcpy(buffer, tb[NFTA_CHAIN_TABLE], NFTTABNAMSIZ);
-
-    if((table_cache = __nl_cache_mngt_require("netfilter/table")))
+    char buffer[NFT_TABLE_MAXNAMELEN];
+    nla_strlcpy(buffer, tb[NFTA_CHAIN_TABLE], NFT_TABLE_MAXNAMELEN);
+    if((table_cache = nl_cache_mngt_require_safe("netfilter/table")))
     {
       struct nftnl_table* table;
 
@@ -241,8 +240,6 @@ static int chain_msg_parser(struct nl_cache_ops* ops, struct sockaddr_nl* who,
       {
         chain->a_table = table;
         chain->ce_mask |= NFTCHA_ATTR_TABLE;
-
-        nftnl_table_put(table);
       }
     }
   }
@@ -255,7 +252,7 @@ static int chain_msg_parser(struct nl_cache_ops* ops, struct sockaddr_nl* who,
 
   if(tb[NFTA_CHAIN_NAME])
   {
-    nla_strlcpy(chain->a_name, tb[NFTA_CHAIN_NAME], NFTCHANAMSIZ);
+    nla_strlcpy(chain->a_name, tb[NFTA_CHAIN_NAME], NFT_CHAIN_MAXNAMELEN);
     chain->ce_mask |= NFTCHA_ATTR_NAME;
   }
 
@@ -386,7 +383,7 @@ static uint64_t chain_compare(struct nl_object* _a, struct nl_object* _b,
 
   //TODO ADD THE MISSING ATTRS
   diff |= NFTCHA_DIFF(HANDLE, a->a_handle != b->a_handle);
-  diff |= NFTCHA_DIFF(NAME, strncmp(a->a_name, b->a_name, NFTCHANAMSIZ) != 0);
+  diff |= NFTCHA_DIFF(NAME, strncmp(a->a_name, b->a_name, NFT_CHAIN_MAXNAMELEN) != 0);
   diff |= NFTCHA_DIFF(POLICY, a->a_policy != b->a_policy);
   diff |= NFTCHA_DIFF(USE, a->a_use != b->a_use);
   diff |= NFTCHA_DIFF(TYPE, a->a_type == b->a_type);
@@ -430,7 +427,7 @@ int nftnl_chain_alloc_cache(struct nl_sock* sk, struct nl_cache** result)
   return nl_cache_alloc_and_fill(&nftnl_chain_ops, sk, result);
 }
 
-struct nftnl_chain* nftnl_chain_get(struct nl_cache* cache, char* name)
+struct nftnl_chain* nftnl_chain_get(struct nl_cache* cache, char* tableName, char* chainName)
 {
   struct nftnl_chain* a;
 
@@ -439,8 +436,16 @@ struct nftnl_chain* nftnl_chain_get(struct nl_cache* cache, char* name)
 
   nl_list_for_each_entry(a, &cache->c_items, ce_list)
   {
-    if(strncmp(a->a_name, name, NFTCHANAMSIZ) == 0)
-      return a;
+    if(strncmp(a->a_name, chainName, NFT_CHAIN_MAXNAMELEN) == 0)
+    {
+      struct nft_table* table = nftnl_chain_get_table(a);
+      if(table && strncmp(nftnl_table_get_name(table), tableName, NFT_TABLE_MAXNAMELEN) == 0)
+      {
+        nftnl_table_put(table);
+        return a;
+      }
+      nftnl_table_put(table);
+    }
   }
 
   return NULL;

@@ -26,7 +26,7 @@ enum nftnl_chain_type {
 struct nftnl_chain* nftnl_chain_alloc(void);
 void nftnl_chain_put(struct nftnl_chain* chain);
 int nftnl_chain_alloc_cache(struct nl_sock* sk, struct nl_cache** result);
-struct nftnl_chain* nftnl_chain_get(struct nl_cache* cache, char* name);
+struct nftnl_chain* nftnl_chain_get(struct nl_cache* cache, char* tableName, char* chainName);
 char* nftnl_chain_flags2str(int flags, char* buf, size_t size);
 //ATTRS
 void nftnl_chain_set_table(struct nftnl_chain *chain, struct nftnl_table* table);

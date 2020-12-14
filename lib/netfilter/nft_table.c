@@ -48,13 +48,13 @@ static int table_clone(struct nl_object* _dst, struct nl_object* _src)
   dst->a_flags = src->a_flags;
   dst->a_use = src->a_use;
   dst->a_handle = src->a_handle;
-  strncpy(dst->a_label, src->a_label, NFTTABNAMSIZ);
+  strncpy(dst->a_label, src->a_label, NFT_TABLE_MAXNAMELEN);
 
   return 0;
 }
 
 static struct nla_policy table_policy[IFA_MAX + 1] = {
-  [NFTA_TABLE_NAME]  = {.type = NLA_STRING, .maxlen = NFTTABNAMSIZ},
+  [NFTA_TABLE_NAME]  = {.type = NLA_STRING, .maxlen = NFT_TABLE_MAXNAMELEN},
   [NFTA_TABLE_FLAGS]  = {.type = NLA_U32},
   [NFTA_TABLE_USE]  = {.type = NLA_U32},
   [NFTA_TABLE_HANDLE]  = {.type = NLA_S64},
@@ -85,7 +85,7 @@ static int table_msg_parser(struct nl_cache_ops* ops, struct sockaddr_nl* who,
 
   if(tb[NFTA_TABLE_NAME])
   {
-    nla_strlcpy(table->a_label, tb[NFTA_TABLE_NAME], NFTTABNAMSIZ);
+    nla_strlcpy(table->a_label, tb[NFTA_TABLE_NAME], NFT_TABLE_MAXNAMELEN);
     table->ce_mask |= NFTTAB_ATTR_NAME;
   }
 
@@ -170,7 +170,7 @@ static uint64_t table_compare(struct nl_object* _a, struct nl_object* _b,
 
 #define NFTTAB_DIFF(ATTR, EXPR) ATTR_DIFF(attrs, NFTTAB_ATTR_##ATTR, a, b, EXPR)
 
-  diff |= NFTTAB_DIFF(NAME, strncmp(a->a_label, b->a_label, NFTTABNAMSIZ) != 0);
+  diff |= NFTTAB_DIFF(NAME, strncmp(a->a_label, b->a_label, NFT_TABLE_MAXNAMELEN) != 0);
   diff |= NFTTAB_DIFF(FAMILY, a->a_family != b->a_family);
   diff |= NFTTAB_DIFF(USE, a->a_use != b->a_use);
   diff |= NFTTAB_DIFF(HANDLE, a->a_handle != b->a_handle);
@@ -219,9 +219,11 @@ struct nftnl_table* nftnl_table_get(struct nl_cache* cache, char* name)
 
   nl_list_for_each_entry(a, &cache->c_items, ce_list)
   {
-    if(strncmp(a->a_label, name, NFTTABNAMSIZ) == 0)
+    if(strncmp(a->a_label, name, NFT_TABLE_MAXNAMELEN) == 0)
+    {
       nl_object_get((struct nl_object*) a);
       return a;
+    }
   }
 
   return NULL;

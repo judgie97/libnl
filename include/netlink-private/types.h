@@ -29,6 +29,7 @@
 #include <linux/tc_act/tc_vlan.h>
 #include <linux/sock_diag.h>
 #include <linux/fib_rules.h>
+#include <linux/netfilter/nf_tables.h>
 
 #define NL_SOCK_PASSCRED	(1<<1)
 #define NL_OWN_PORT		(1<<2)
@@ -1334,17 +1335,15 @@ struct rtnl_vlan
 	uint32_t       v_flags;
 };
 
-#define NFTTABNAMSIZ 32
-
 struct nftnl_table
 {
   NLHDR_COMMON
 
-    uint8_t		a_family;
+  uint8_t		a_family;
   uint32_t	a_flags;
   uint32_t	a_use;
   uint64_t	a_handle;
-  char a_label[NFTTABNAMSIZ];
+  char a_label[NFT_TABLE_MAXNAMELEN];
 };
 
 struct nftnl_hook
@@ -1354,7 +1353,6 @@ struct nftnl_hook
   char a_device[IFNAMSIZ];
 };
 
-#define NFTCHANAMSIZ 256
 #define NFTCHATYPSIZ 32
 
 struct nftnl_chain
@@ -1362,13 +1360,27 @@ struct nftnl_chain
   NLHDR_COMMON
   struct nftnl* a_table;
   uint64_t a_handle;
-  char a_name[NFTCHANAMSIZ];
+  char a_name[NFT_CHAIN_MAXNAMELEN];
   struct nftnl_hook a_hook;
   uint32_t a_policy;
   uint32_t a_use;
   enum nftnl_chain_type a_type;
   //TODO STORE THE CHAIN COUNTERS SOMEHOW
   uint32_t a_flags;
+};
+
+struct nftnl_rule
+{
+  NLHDR_COMMON
+  struct nftnl_chain* a_chain;
+  uint64_t a_handle;
+  //EXPRESSIONS
+  //COMPAT
+  uint64_t a_position;
+  uint8_t a_userdata[NFT_USERDATA_MAXLEN];
+  uint32_t a_id;
+  uint32_t a_posId;
+  uint32_t a_handleId;
 };
 
 #endif
