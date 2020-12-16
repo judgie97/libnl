@@ -99,6 +99,8 @@ libnlinclude_netlink_netfilter_HEADERS = \
 	include/netlink/netfilter/queue_msg.h \
 	include/netlink/netfilter/nft_table.h \
 	include/netlink/netfilter/nft_chain.h \
+	include/netlink/netfilter/nft_rule.h \
+	include/netlink/netfilter/nft_rule_expression.h \
 	$(NULL)
 libnlinclude_netlink_routedir = $(libnlincludedir)/netlink/route
 libnlinclude_netlink_route_HEADERS = \
@@ -519,6 +521,8 @@ lib_libnl_nf_3_la_SOURCES = \
 	lib/netfilter/nft_util.c \
 	lib/netfilter/nft_table.c \
 	lib/netfilter/nft_chain.c \
+	lib/netfilter/nft_rule.c \
+	lib/netfilter/nft_rule_expression.c \
 	$(NULL)
 lib_libnl_nf_3_la_CPPFLAGS = \
 	$(lib_cppflags)

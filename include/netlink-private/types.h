@@ -1369,12 +1369,74 @@ struct nftnl_chain
   uint32_t a_flags;
 };
 
+struct nftnl_comparison
+{
+  enum nft_cmp_ops a_operation;
+  uint8_t a_data[NFT_REG_SIZE];
+  uint32_t a_datalen;
+};
+
+struct nftnl_lookup
+{
+  char a_set[NFT_SET_MAXNAMELEN];
+};
+
+union nftnl_match_operation
+{
+  struct nftnl_comparison a_cmp;
+  struct nftnl_lookup a_lookup;
+};
+
+enum nftnl_match_operation_type
+{
+  NFNTL_MATCH_TYPE_UNSPEC,
+  NFNTL_MATCH_TYPE_COMPARISON,
+  NFTNL_MATCH_TYPE_LOOKUP
+};
+
+enum nftnl_match_property
+{
+  NFNTL_MATCH_PROP_UNSPEC,
+  NFTNL_MATCH_PROP_IP_SADDR,
+  NFTNL_MATCH_PROP_IP_DADDR,
+  NFTNL_MATCH_PROP_IP_L4PROTO
+};
+
+struct nftnl_match
+{
+  enum nftnl_match_property a_property;
+  enum nftnl_match_operation_type a_operationType;
+  union nftnl_match_operation a_operation;
+};
+
+enum nftnl_expression_type
+{
+  NFNTL_EXPR_MATCH
+};
+
+union nftnl_expression_statement
+{
+  struct nftnl_match a_match;
+};
+
+struct nftnl_expression
+{
+  enum nftnl_expression_type a_type;
+  union nftnl_expression_statement a_statement;
+};
+
+struct nftnl_expression_list
+{
+  struct nftnl_expression* a_list;
+  uint32_t a_count;
+};
+
 struct nftnl_rule
 {
   NLHDR_COMMON
   struct nftnl_chain* a_chain;
   uint64_t a_handle;
-  //EXPRESSIONS
+  struct nftnl_expression_list a_expressions;
   //COMPAT
   uint64_t a_position;
   uint8_t a_userdata[NFT_USERDATA_MAXLEN];

@@ -352,6 +352,12 @@ global:
 	nftnl_chain_hook_get_dev;
 	nftnl_chain_add;
     nftnl_chain_delete;
+    nftnl_rule_alloc;
+    nftnl_rule_put;
+    nftnl_rule_alloc_cache;
+    rule_delete_expression_list;
+    rule_expression_list_clone;
+    rule_expression_parse;
 local:
 	*;
 };
